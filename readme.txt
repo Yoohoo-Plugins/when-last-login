@@ -1,11 +1,11 @@
 === When Last Login ===
 Contributors: andrewza, yoohooplugins, travislima
-Tags: last login, user login, user login time, last logged in, last seen, user last seen, WordPress last login plugin, last login plugin, last seen plugin, when last login, when last user login, when last user seen, last login WordPress
+Tags: last login, user login, user login time, when last login, login record
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=4GC4JEZH7KSKL
 Requires at least: 5.0
-Tested up to: 6.1
+Tested up to: 6.7.2
 Requires PHP: 7.2
-Stable tag: 1.2.1
+Stable tag: 1.2.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -93,6 +93,15 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 
 == Changelog ==
 
+= 1.2.3 - 2025-03-28 =
+* BUG FIX: Fixed dashboard widget timezone display to use get_date_from_gmt() instead of date_i18n().
+* ENHANCEMENT: Added setting (When Last Login > Settings > General) to configure the number of users shown in the dashboard widget (Min: 3, Max: 10, Default: 5). Updated setting description text.
+* ENHANCEMENT: Added sort toggle (Dropdown UI) to the dashboard widget to switch between sorting by 'Most Frequent' (login count) and 'Recently Logged In' (login time).
+
+= 1.2.2 - 2023-02-28 =
+* SECURITY: Added in nonce for hiding the admin notice shown on the settings page.
+* BUG FIX: Fixed minor issue where admins weren't being correctly excluded from the user query for the login widget.
+
 = 1.2.1 - 2021-09-21 =
 * Enhancement: Removed admin users from being tracked in WLL dashboard statistics.
 * Bug Fix: Issue with order by not correctly set in the dashboard statistics.
@@ -156,6 +165,9 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 * First Release
 
 == Upgrade Notice ==
+= 1.2.3 =
+* Upgrade to fix timezone display in the dashboard widget, add a configurable user count, and add a sort toggle (Dropdown UI: 'Most Frequent' / 'Recently Logged In').
+
 = 1.2.2 =
 * Upgrade for minor security and bug improvements.
 
@@ -185,5 +197,3 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 
 = 0.1 =
 * First Release
-
-

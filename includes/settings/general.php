@@ -22,6 +22,15 @@
 	</tr>
 
 	<tr>
+		<th><label for="wll_widget_user_count"><?php esc_html_e( 'Dashboard Widget Users', 'when-last-login' ); ?></label></th>
+		<td>
+			<?php $widget_count_val = isset( $settings['widget_user_count'] ) ? intval( $settings['widget_user_count'] ) : 5; ?>
+			<input type="number" min="3" max="10" step="1" name="wll_widget_user_count" id="wll_widget_user_count" value="<?php echo esc_attr( $widget_count_val ); ?>" class="small-text" />
+			<p class="description"><?php esc_html_e( 'Number of users to show in the "User Login Activity" dashboard widget (Min: 3, Max: 10).', 'when-last-login' ); ?></p>
+		</td>
+	</tr>
+
+	<tr>
 		<th><h2><?php esc_html_e( 'Tools', 'when-last-login' ); ?></h2></th>
 		<td></td>
 	</tr>
@@ -78,4 +87,3 @@
 	    <td></td>
 	</tr>
 </table>
-
