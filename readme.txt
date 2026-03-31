@@ -1,6 +1,6 @@
 === When Last Login ===
 Contributors: andrewza, yoohooplugins, travislima
-Tags: last login, user login, user login time, last logged in, last seen, user last seen, WordPress last login plugin, last login plugin, last seen plugin, when last login, when last user login, when last user seen, last login WordPress
+Tags: last login, user login, user login time, last logged in, last seen
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=4GC4JEZH7KSKL
 Requires at least: 5.0
 Tested up to: 6.8
@@ -196,5 +196,3 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 
 = 0.1 =
 * First Release
-
-
