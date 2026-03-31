@@ -810,6 +810,34 @@ class WLL_DB {
 	}
 
 	/**
+	 * Delete specific login records by ID.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  array $ids Record IDs to delete.
+	 * @return int       Number of records deleted.
+	 */
+	public static function delete_records( $ids ) {
+		global $wpdb;
+
+		if ( empty( $ids ) || ! is_array( $ids ) ) {
+			return 0;
+		}
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$ids = array_map( 'absint', $ids );
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+
+		return $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM $records_table WHERE id IN ($placeholders)",
+				$ids
+			)
+		);
+	}
+
+	/**
 	 * Clean up migrated posts.
 	 *
 	 * @since  1.3.0

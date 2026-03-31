@@ -34,6 +34,7 @@ class When_Last_Login {
       include WLL_DIR_PATH . '/includes/lib/IpAnonymizer.php';
       include WLL_DIR_PATH . '/includes/privacy-policy.php';
       include WLL_DIR_PATH . '/includes/class-wll-db.php';
+      include WLL_DIR_PATH . '/includes/class-wll-list-table.php';
 
       add_action( 'admin_init', array( $this, 'admin_init' ) );
       add_action( 'admin_init', array( $this, 'check_db_version' ) );
@@ -63,6 +64,7 @@ class When_Last_Login {
       add_filter( 'pmpro_memberslist_csv_extra_columns', array( $this, 'pmpro_csv_export_columns' ) );
       add_filter( 'pmpro_memberslist_csv_extra_column_data', array( $this, 'pmpro_csv_export_row' ), 10, 2 );
       add_action( 'admin_menu', array( $this, 'wll_settings_page' ), 9 );
+      add_action( 'admin_menu', array( $this, 'wll_login_records_page' ), 10 );
       add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
       add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
 
@@ -346,6 +348,7 @@ class When_Last_Login {
                 ?>
 
                 <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php _e( 'View All Users', 'when-last-login' ); ?></a>
+                | <a href="<?php echo admin_url( 'admin.php?page=wll-login-records' ); ?>"><?php _e( 'View Login Records', 'when-last-login' ); ?></a>
                 <?php                
                     
             }
@@ -391,6 +394,7 @@ class When_Last_Login {
         ?>
 
         <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php esc_html_e( 'View All Users', 'when-last-login' ); ?></a>
+        | <a href="<?php echo admin_url( 'admin.php?page=wll-login-records' ); ?>"><?php esc_html_e( 'View Login Records', 'when-last-login' ); ?></a>
         <?php    
 
         }
@@ -529,10 +533,45 @@ class When_Last_Login {
 
       add_submenu_page( 'when-last-login-settings', esc_html__('Settings', 'when-last-login'), __('Settings', 'when-last-login'), 'manage_options', 'when-last-login-settings', array( $this, 'wll_settings_callback' ) );
 
+      add_submenu_page( 'when-last-login-settings', esc_html__('Login Records', 'when-last-login'), __('Login Records', 'when-last-login'), 'manage_options', 'wll-login-records', array( $this, 'wll_login_records_callback' ) );
+
       add_submenu_page( 'when-last-login-settings', esc_html__('Extensions', 'when-last-login'), __('Extensions', 'when-last-login'), 'manage_options', 'admin.php?page=when-last-login-settings&tab=add-ons' );
       
       do_action( 'wll_settings_admin_menu_item' );
 
+    }
+
+    /**
+     * Login records page callback.
+     *
+     * @since  1.3.0
+     */
+    public function wll_login_records_callback() {
+      // Handle bulk delete redirect.
+      if ( ! empty( $_REQUEST['deleted'] ) ) {
+        printf(
+          '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+          sprintf(
+            /* translators: %d: number of records deleted */
+            _n( '%d record deleted.', '%d records deleted.', intval( $_REQUEST['deleted'] ), 'when-last-login' ),
+            intval( $_REQUEST['deleted'] )
+          )
+        );
+      }
+
+      ?>
+      <div class="wrap">
+        <h1><?php esc_html_e( 'Login Records', 'when-last-login' ); ?></h1>
+        <form method="post">
+          <?php
+          $list_table = new WLL_List_Table();
+          $list_table->prepare_items();
+          $list_table->search_box( __( 'Search', 'when-last-login' ), 'wll-records' );
+          $list_table->display();
+          ?>
+        </form>
+      </div>
+      <?php
     }
 
     public function wll_settings_callback(){
