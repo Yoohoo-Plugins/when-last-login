@@ -62,17 +62,12 @@ class When_Last_Login {
       add_action( 'pmpro_memberslist_extra_cols_body', array( $this, 'pmpro_memberlist_add_column_data' ) );
       add_filter( 'pmpro_memberslist_csv_extra_columns', array( $this, 'pmpro_csv_export_columns' ) );
       add_filter( 'pmpro_memberslist_csv_extra_column_data', array( $this, 'pmpro_csv_export_row' ), 10, 2 );
-      add_action( 'init', array( $this, 'login_record_cp' ) );
-
       add_action( 'admin_menu', array( $this, 'wll_settings_page' ), 9 );
       add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
       add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
 
       add_filter( 'plugin_row_meta', array( $this, 'wll_plugin_row_meta' ), 10, 2 );
       add_filter( 'plugin_action_links_' . WLL_BASENAME, array( $this, 'wll_plugin_action_links' ), 10, 2 );
-
-      add_filter( 'manage_wll_records_posts_columns' , array( $this, 'wll_records_columns'), 10, 1 );
-      add_action( 'manage_wll_records_posts_custom_column' , array( $this, 'wll_records_column_contents' ), 10, 2 );
 
       /**
       * Multisite support
@@ -209,8 +204,6 @@ class When_Last_Login {
 	 */
      public static function last_login( $user_login, $user ) {
 
-      global $show_login_records;
-
       $record_login = apply_filters( 'wll_record_login', true, $user, $user_login );
 
       // If filter isn't true, don't record login at all!
@@ -242,7 +235,7 @@ class When_Last_Login {
         update_user_meta( $user->ID, 'wll_user_ip_address', $ip );
       }
 
-      // Save to database tables (new in 1.3.0).
+      // Save to database tables.
       if ( class_exists( 'WLL_DB' ) ) {
         $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ) : '';
         $browser    = When_Last_Login::parse_browser( $user_agent );
@@ -256,22 +249,6 @@ class When_Last_Login {
           'os'         => $os,
           'device'     => $device,
         ) );
-      }
-
-      // Legacy: Create post record if enabled.
-      if( $show_login_records == true ){
-        $args = array(
-          'post_title'    => $user->data->display_name . __( ' has logged in at ', 'when-last-login' ) . date( 'Y-m-d H:i:s', current_time( 'timestamp' ) ),
-          'post_status'   => 'publish',
-          'post_author'   => $user->ID,
-          'post_type'     => 'wll_records'
-        );
-
-        $post_id = wp_insert_post( $args );
-
-        if ( ! empty( $ip ) && ! empty( $post_id ) ) {
-          update_post_meta( $post_id, 'wll_user_ip_address', $ip );
-        }
       }
 
       do_action( 'wll_logged_in_action', array( 'login_count' => $wll_new_value, 'user' => $user ), $wll_settings );
@@ -293,60 +270,6 @@ class When_Last_Login {
 
      }
 
-     public static function login_record_cp(){
-
-      global $show_login_records;
-
-      $settings = get_option( 'wll_settings' );
-
-      $show = (!empty($settings['show_all_login_records']) AND $settings['show_all_login_records'] === 1);
-
-      $show_login_records = apply_filters( 'when_last_login_show_records_table', $show );
-
-      if( $show_login_records != true ){
-        return;
-      }
-
-       $labels = array(
-         'name'               => __( 'Login Records', 'when-last-login' ),
-         'singular_name'      => __( 'Login Record', 'when-last-login' ),
-         'menu_name'          => __( 'Login Records', 'when-last-login' ),
-         'name_admin_bar'     => __( 'Login Record', 'when-last-login' ),
-         'add_new'            => __( 'Add New', 'when-last-login' ),
-         'add_new_item'       => __( 'Add New Login Record', 'when-last-login' ),
-         'new_item'           => __( 'New Login Record', 'when-last-login' ),
-         'edit_item'          => __( 'Edit Login Record', 'when-last-login' ),
-         'view_item'          => __( 'View Login Record', 'when-last-login' ),
-         'all_items'          => __( 'All Login Records', 'when-last-login' ),
-         'search_items'       => __( 'Search Login Records', 'when-last-login' ),
-         'parent_item_colon'  => __( 'Parent Login Records:', 'when-last-login' ),
-         'not_found'          => __( 'No login records found.', 'when-last-login' ),
-         'not_found_in_trash' => __( 'No login records found in Trash.', 'when-last-login' )
-       );
-
-       $args = array(
-         'labels'             => $labels,
-         'description'        => __( 'Description.', 'when-last-login' ),
-         'public'             => false,
-         'publicly_queryable' => false,
-         'show_ui'            => true,
-         'show_in_menu'       => 'when-last-login-settings',
-         'query_var'          => true,
-         'rewrite'            => array( 'slug' => 'when-last-login-records' ),
-         'capability_type'    => 'post',
-         'has_archive'        => true,
-         'hierarchical'       => false,
-         'menu_position'      => null,
-         'supports'           => array( 'title', 'author' ),
-         'capabilities' => array(
-           'create_posts' => false,
-         ),
-         'map_meta_cap' => true,
-       );
-
-       register_post_type( 'wll_records', $args );
-     }
-
      /**
      * Setup admin backend to display custom meta box for login count for admins
      */
@@ -363,7 +286,7 @@ class When_Last_Login {
 
     public static function admin_dashboard_widget_display(){
 
-        global $show_widget, $show_login_records;
+        global $show_widget;
 
         if( $show_widget != true ){
             return;
@@ -423,9 +346,6 @@ class When_Last_Login {
                 ?>
 
                 <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php _e( 'View All Users', 'when-last-login' ); ?></a>
-
-                <?php if( $show_login_records == true ){ ?>
-                    <a style="float:right" href="<?php echo admin_url( 'edit.php?post_type=wll_records' ); ?>"><?php _e( 'View Login Records', 'when-last-login' ); } //end the if filter check here ?></a>
                 <?php                
                     
             }
@@ -471,9 +391,6 @@ class When_Last_Login {
         ?>
 
         <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php esc_html_e( 'View All Users', 'when-last-login' ); ?></a>
-
-        <?php if( $show_login_records == true ){ ?>
-            <a style="float:right" href="<?php echo admin_url( 'edit.php?post_type=wll_records' ); ?>"><?php esc_html_e( 'View Login Records', 'when-last-login' ); } //end the if filter check here ?></a>
         <?php    
 
         }
@@ -634,7 +551,6 @@ class When_Last_Login {
 
           $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( $_POST['wll_login_record_user_access'] ) : "";
           $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
-          $wll_settings['show_all_login_records'] = isset( $_POST['wll_all_login_records'] ) && sanitize_text_field( $_POST['wll_all_login_records'] ) == '1'  ? 1 : 0;
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 
@@ -675,7 +591,7 @@ class When_Last_Login {
     }
 
     /**
-     * Function to remove logs automatically older than 3 months.
+     * Function to remove IP addresses from usermeta.
      * @since 1.0.0
      */
     public function wll_automatically_remove_logs() {
@@ -689,42 +605,6 @@ class When_Last_Login {
       // Bail if not on our settings page
       if ( 'admin.php' == $pagenow && 'when-last-login-settings' != $_GET['page'] ) {
         return;
-      }
-      
-      $sql = "DELETE p, pm FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta pm ON pm.post_id = p.ID WHERE p.post_type = 'wll_records'";
-
-      if ( isset( $_REQUEST['remove_all_wll_records'] ) ) {
-
-        $nonce = $_REQUEST['wll_remove_all_records_nonce'];
-        if ( wp_verify_nonce( $nonce, 'wll_remove_all_records_nonce' ) ) {
-
-          if ( $wpdb->query( $sql ) > 0 ) {
-            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
-          } else {
-            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
-          }
-        } else {
-          die( 'nonce not valid.' );
-        }
-      }
-
-      if ( isset( $_REQUEST['remove_wll_records'] ) ) {
-
-        $nonce = $_REQUEST['wll_remove_records_nonce'];
-        if ( wp_verify_nonce( $nonce, 'wll_remove_records_nonce' ) ) {
-
-          $date = apply_filters( 'wll_automatically_remove_logs_date', date( 'Y-m-d', strtotime( '-3 months' ) ) );
-
-          $sql .= " AND p.post_date <= '$date'";
-
-          if ( $wpdb->query( $sql ) > 0 ) {
-            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
-          } else {
-            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
-          }
-        } else {
-          die( 'nonce not valid.' );
-        } 
       }
 
       if ( isset( $_REQUEST['remove_wll_ip_addresses'] ) ) {
@@ -742,28 +622,6 @@ class When_Last_Login {
         } else {
           die( 'nonce not valid.' );
         }
-      }
-    }
-
-
-    public function wll_records_columns( $columns ){
-
-      return array_merge( $columns, array( 'wll-ip-address' => __( 'IP Address', 'when-last-login' ) ) );
-
-    }
-
-    public function wll_records_column_contents( $column, $post_id ){
-
-      switch ( $column ) {
-        case 'wll-ip-address':
-          $ip_address = get_post_meta( $post_id, 'wll_user_ip_address', true );
-          if ( ! empty( $ip_address ) && $ip_address != "" ) {
-            echo "<a href='http://www.ip-adress.com/ip_tracer/". esc_attr( $ip_address ) ."' target='_BLANK' title='".__( 'Lookup', 'when-last-login' )."'>" . esc_html( $ip_address ) . "</a>";
-          } else {
-            esc_html_e( 'IP Address Not Recorded', 'when-last-login' );
-          }
-          break;
-
       }
     }
 

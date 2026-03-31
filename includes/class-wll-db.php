@@ -593,6 +593,9 @@ class WLL_DB {
 			$status['status']    = 'complete';
 			$status['completed'] = current_time( 'mysql' );
 			update_option( 'wll_migration_status', $status );
+
+			// Clean up migrated posts from the posts table.
+			self::cleanup_migrated_posts();
 		}
 	}
 

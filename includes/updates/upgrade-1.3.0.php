@@ -265,6 +265,11 @@ function wll_migrate_records_batch() {
 		$status['status']    = 'complete';
 		$status['completed'] = current_time( 'mysql' );
 		update_option( 'wll_migration_status', $status );
+
+		// Clean up migrated posts from the posts table.
+		if ( class_exists( 'WLL_DB' ) ) {
+			WLL_DB::cleanup_migrated_posts();
+		}
 	}
 }
 

@@ -14,15 +14,18 @@ $users_id = get_users( array(
 foreach( $users_id as $user_id ){
   delete_user_meta( $user_id, 'when_last_login' );
   delete_user_meta( $user_id, 'when_last_login_count' );
+  delete_user_meta( $user_id, 'wll_user_ip_address' );
   delete_user_meta( $user_id, 'wll_consent_to_track' );
   delete_user_meta( $user_id, 'wll_consent_to_track_date' );
 }
 
-//Delete CPT's from databse if you uninstall When Last Login and Post Meta.
-$sql = "DELETE p, pm FROM $wpdb->posts p INNER JOIN $wpdb->postmeta pm ON pm.post_id = p.ID WHERE p.post_type = 'wll_records'";
-$wpdb->query( $sql );
+// Delete custom database tables.
+$summary_table = $wpdb->prefix . 'when_last_login';
+$records_table = $wpdb->prefix . 'wll_login_records';
+$wpdb->query( "DROP TABLE IF EXISTS `$summary_table`" );
+$wpdb->query( "DROP TABLE IF EXISTS `$records_table`" );
 
-//Delete custom table if it exists
+// Delete legacy table if it exists.
 $delete_table = $wpdb->prefix . 'wll_login_attempts' ;
 $sql = "DROP TABLE IF EXISTS `$delete_table`";
 $wpdb->query( $sql );
