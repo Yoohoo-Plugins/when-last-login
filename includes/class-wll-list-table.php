@@ -171,10 +171,12 @@ class WLL_List_Table extends WP_List_Table {
 	 * Process bulk actions.
 	 *
 	 * @since  1.3.0
+	 *
+	 * @return int Number of records deleted.
 	 */
 	public function process_bulk_action() {
 		if ( 'delete' === $this->current_action() ) {
-			$nonce = isset( $_REQUEST['_wpnonce'] ) ? $_REQUEST['_wpnonce'] : '';
+			$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( $_REQUEST['_wpnonce'] ) : '';
 
 			if ( ! wp_verify_nonce( $nonce, 'bulk-' . $this->_args['plural'] ) ) {
 				wp_die( esc_html__( 'Invalid nonce', 'when-last-login' ) );
@@ -183,9 +185,11 @@ class WLL_List_Table extends WP_List_Table {
 			$record_ids = isset( $_REQUEST['record_id'] ) ? array_map( 'intval', $_REQUEST['record_id'] ) : array();
 
 			if ( ! empty( $record_ids ) ) {
-				WLL_DB::delete_records( $record_ids );
+				return WLL_DB::delete_records( $record_ids );
 			}
 		}
+
+		return 0;
 	}
 
 	/**

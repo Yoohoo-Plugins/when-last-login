@@ -547,7 +547,16 @@ class When_Last_Login {
      * @since  1.3.0
      */
     public function wll_login_records_callback() {
-      // Handle bulk delete redirect.
+      // Process bulk actions and redirect if needed.
+      $list_table = new WLL_List_Table();
+      $deleted = $list_table->process_bulk_action();
+
+      if ( $deleted > 0 ) {
+        wp_safe_redirect( add_query_arg( 'deleted', $deleted, admin_url( 'admin.php?page=wll-login-records' ) ) );
+        exit;
+      }
+
+      // Display success notice after redirect.
       if ( ! empty( $_REQUEST['deleted'] ) ) {
         printf(
           '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
@@ -559,16 +568,15 @@ class When_Last_Login {
         );
       }
 
+      $list_table->prepare_items();
+
       ?>
       <div class="wrap">
         <h1><?php esc_html_e( 'Login Records', 'when-last-login' ); ?></h1>
+        <?php $list_table->search_box( __( 'Search', 'when-last-login' ), 'wll-records' ); ?>
         <form method="post">
-          <?php
-          $list_table = new WLL_List_Table();
-          $list_table->prepare_items();
-          $list_table->search_box( __( 'Search', 'when-last-login' ), 'wll-records' );
-          $list_table->display();
-          ?>
+          <input type="hidden" name="page" value="<?php echo esc_attr( $_REQUEST['page'] ); ?>" />
+          <?php $list_table->display(); ?>
         </form>
       </div>
       <?php
