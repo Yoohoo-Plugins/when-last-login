@@ -1,0 +1,28 @@
+From a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0 Mon Sep 17 00:00:00 2001
+From: Lloyd <lloyd@picoclaw.local>
+Date: Wed, 1 Apr 2026 18:46:00 +0200
+Subject: [PATCH 2/3] Fix: Escape settings tabs output to prevent XSS
+
+The settings tabs loop outputs $key and $val['title'] without escaping.
+Since $tabs is filterable via 'wll_settings_page_tabs', any third-party
+plugin hooking into this filter could inject XSS. This patch adds proper
+escaping with esc_attr() and esc_html().
+---
+ includes/settings.php | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/includes/settings.php b/includes/settings.php
+index 1111111..2222222 100644
+--- a/includes/settings.php
++++ b/includes/settings.php
+@@ -54,7 +54,7 @@
+ 			}
+ 		}
+ 
+-		echo '<a class="nav-tab '.$active.'" href="?page=when-last-login-settings&tab='.$key.'">'.$val['title'].'</a>';
++		echo '<a class="nav-tab ' . esc_attr( $active ) . '" href="?page=when-last-login-settings&tab=' . esc_attr( $key ) . '">' . esc_html( $val['title'] ) . '</a>';
+ 
+ 	}
+ 
+-- 
+2.47.3

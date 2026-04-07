@@ -1,0 +1,91 @@
+From: Lloyd <lloyd@picoclaw.local>
+Date: Wed, 1 Apr 2026 18:40:00 +0200
+Subject: [PATCH 2/3] Fix: Replace deprecated WP functions and improve compatibility
+
+- Replace deprecated get_blog_details() with get_site() (WP 5.1+)
+- Fix text domain path bug: dirname('WLL_BASE_NAME') was using a string literal
+  instead of the actual constant, breaking translation loading
+- Add missing capability check to wll_hide_subscription_notice AJAX handler
+- Use $_POST instead of $_REQUEST for AJAX nonce verification
+- Replace die() with wp_die() for proper WordPress error handling
+- Fix return statement in PMPro column data (was returning in output context)
+---
+ includes/settings.php       |  2 +-
+ when-last-login.php         | 22 +++++++++++-----------
+ 2 files changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/includes/settings.php b/includes/settings.php
+index a1b2c3d..e4f5g6h 100644
+--- a/includes/settings.php
++++ b/includes/settings.php
+@@ -54,7 +54,7 @@
+ 			}
+ 		}
+ 
+-		echo '<a class="nav-tab '.$active.'" href="?page=when-last-login-settings&tab='.$key.'">'.$val['title'].'</a>';
++		echo '<a class="nav-tab ' . esc_attr( $active ) . '" href="?page=when-last-login-settings&tab=' . esc_attr( $key ) . '">' . esc_html( $val['title'] ) . '</a>';
+ 
+ 	}
+ 
+diff --git a/when-last-login.php b/when-last-login.php
+index f4a2b19..a1b2c3d 100644
+--- a/when-last-login.php
++++ b/when-last-login.php
+@@ -127,7 +127,7 @@ class When_Last_Login {
+     }
+ 
+     public static function text_domain(){
+-      load_plugin_textdomain( 'when-last-login', false, dirname( 'WLL_BASE_NAME' ) . '/languages' );
++      load_plugin_textdomain( 'when-last-login', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+     }
+ 
+     public static function update_notice(){
+@@ -141,7 +141,10 @@ class When_Last_Login {
+     }
+ 
+     public function wll_hide_subscription_notice(){
+-    if ( ! wp_verify_nonce( $_REQUEST['nonce'], 'wll_hide_notice_nonce' ) ) {
++      if ( ! current_user_can( 'manage_options' ) ) {
++        wp_die( -1 );
++      }
++      if ( ! wp_verify_nonce( $_POST['nonce'], 'wll_hide_notice_nonce' ) ) {
+         wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
+       }
+       update_option( 'wll_notice_hide', '1' );
+@@ -253,7 +256,7 @@ class When_Last_Login {
+                 foreach( $sites as $site ) {
+                 
+                     $blog_id = $site->blog_id;
+-                    $blog_details = get_blog_details( $blog_id );
++                    $site_info = get_site( $blog_id );
+                 
+                     ?><table width="100%" text-align="center" class='wp-list-table striped widefat'>          
+                     <tr>
+-                        <th colspan='4' style='text-align: center;'><strong><?php echo esc_html( $blog_details->blogname ) .' (<a href="'. esc_url( $blog_details->siteurl ).'" target="_BLANK">'. esc_html( $blog_details->siteurl ) . ')</a>'; ?></strong></th>
++                        <th colspan='4' style='text-align: center;'><strong><?php echo esc_html( $site_info->blogname ) .' (<a href="'. esc_url( $site_info->siteurl ).'" target="_BLANK">'. esc_html( $site_info->siteurl ) . ')</a>'; ?></strong></th>
+                     </tr>                      
+                     <?php
+@@ -414,7 +417,7 @@ class When_Last_Login {
+       if( ! empty( $users->when_last_login ) ){
+         echo human_time_diff( $users->when_last_login );
+       }else{
+-        return esc_html_e( 'Never', 'when-last-login' );
++        echo esc_html__( 'Never', 'when-last-login' );
+       }
+ ?>
+       </td>
+@@ -533,7 +536,7 @@ class When_Last_Login {
+           }
+         } else {
+-          die( 'nonce not valid' );
++          wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
+         }
+       }
+     }
+@@ -598,7 +601,7 @@ class When_Last_Login {
+             }
+           } else {
+-            die( 'nonce not valid.' );
++            wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
+           }
+         }

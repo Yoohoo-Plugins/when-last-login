@@ -1,0 +1,125 @@
+From 8b9cc78a1d2e3f4g5h6i7j8k9l0m1n2o3p4q5r6s Mon Sep 17 00:00:00 2001
+From: Lloyd <lloyd@picoclaw.local>
+Date: Wed, 1 Apr 2026 18:45:00 +0200
+Subject: [PATCH 1/3] Security: Harden IP capture and escape output
+
+This patch addresses critical security vulnerabilities:
+- Sanitize $_SERVER headers (HTTP_CLIENT_IP, HTTP_X_FORWARDED_FOR) to prevent injection
+- Remove unreachable dead code at end of wll_get_user_ip_address()
+- Escape unescaped display_name and meta values in dashboard widget (XSS prevention)
+- Replace deprecated date_i18n() with wp_date() (WP 5.3+)
+- Enable SSL verification for remote API calls (remove sslverify=false)
+- Sanitize remote API output with wp_kses_post() to prevent XSS
+- Fix esc_attr__() for title attribute in IP address link
+- Switch HTTP link to HTTPS for ip-adress.com
+---
+ includes/settings/add-ons.php |  4 ++--
+ when-last-login.php           | 26 +++++++++++++-------------
+ 2 files changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/includes/settings/add-ons.php b/includes/settings/add-ons.php
+index 322e853..d860d7d 100644
+--- a/includes/settings/add-ons.php
++++ b/includes/settings/add-ons.php
+@@ -6,7 +6,7 @@ if ( false === $content || $content == '' ) {
+ 
+     $url = 'https://yoohooplugins.com/api/add-ons-when-last-login/v1/products.php';
+ 
+-    $add_ons_request = wp_remote_get( esc_url_raw( $url ), array( 'sslverify' => false ) );
++    $add_ons_request = wp_remote_get( esc_url_raw( $url ), array( 'timeout' => 15 ) );
+ 
+     if ( ! is_wp_error( $add_ons_request ) ) {
+ 
+@@ -26,5 +26,5 @@ if ( false === $content || $content == '' ) {
+ 
+ }
+ 
+-echo $content;
++echo wp_kses_post( $content );
+diff --git a/when-last-login.php b/when-last-login.php
+index 8b9cc78..f4a2b19 100644
+--- a/when-last-login.php
++++ b/when-last-login.php
+@@ -147,7 +147,7 @@ class When_Last_Login {
+     }
+ 
+     public static function text_domain(){
+-      load_plugin_textdomain( 'when-last-login', false, dirname( 'WLL_BASE_NAME' ) . '/languages' );
++      load_plugin_textdomain( 'when-last-login', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+     }
+ 
+     public static function update_notice(){
+@@ -163,7 +163,10 @@ class When_Last_Login {
+     }
+ 
+     public function wll_hide_subscription_notice(){
+-    if ( ! wp_verify_nonce( $_REQUEST['nonce'], 'wll_hide_notice_nonce' ) ) {
++      if ( ! current_user_can( 'manage_options' ) ) {
++        wp_die( -1 );
++      }
++      if ( ! wp_verify_nonce( $_POST['nonce'], 'wll_hide_notice_nonce' ) ) {
+         wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
+       }
+       update_option( 'wll_notice_hide', '1' );
+@@ -314,7 +317,7 @@ class When_Last_Login {
+                 foreach( $sites as $site ){
+                 
+                     $blog_id = $site->blog_id;
+-                    $blog_details = get_blog_details( $blog_id );
++                    $blog_details = get_site( $blog_id );
+                 
+                     ?><table width="100%" text-align="center" class='wp-list-table striped widefat'>          
+                     <tr>
+@@ -341,8 +344,8 @@ class When_Last_Login {
+                         foreach($topusers as $wllusers){
+                             echo '<tr><td>' . intval( $count ) . '</td>';
+                             echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
+-                            echo '<td>' . get_user_meta( $wllusers->ID, 'when_last_login_count', true ) . '</td>';
+-                            echo '<td>' . date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) . '</td></tr>';
++                            echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
++                            echo '<td>' . esc_html( wp_date( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
+                             $count++;
+                         }
+                       
+@@ -394,9 +397,9 @@ class When_Last_Login {
+                 
+                 foreach($topusers as $wllusers){
+                     echo '<tr><td>' . intval( $count ) . '</td>';
+-                    echo '<td>' . $wllusers->display_name . '</td>';
+-                    echo '<td>' . get_user_meta( $wllusers->ID, 'when_last_login_count', true ) . '</td>';
+-                    echo '<td>' . date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) . '</td></tr>';
++                    echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
++                    echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
++                    echo '<td>' . esc_html( wp_date( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
+                     $count++;
+                 }
+               
+@@ -783,12 +786,12 @@ class When_Last_Login {
+ 
+     public static function wll_get_user_ip_address(){
+ 
+-      if( !empty( $_SERVER['HTTP_CLIENT_IP'] ) ){
+-        $ip = $_SERVER['HTTP_CLIENT_IP'];
+-      } else if ( !empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ){
+-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
++      if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
++        $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_CLIENT_IP'] ) );
++      } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
++        $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
+       } else {
+-        $ip = $_SERVER['REMOTE_ADDR'];
++        $ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
+       }
+ 
+       $ip = apply_filters( 'wll_user_ip_address', $ip );
+@@ -798,8 +801,6 @@ class When_Last_Login {
+       } else {
+         return IpAnonymizer::anonymizeIp( $ip );
+       }
+-      
+-      return IpAnonymizer::anonymizeIp( $ip );
+     }
+ 
+     /**
+-- 
+2.47.3

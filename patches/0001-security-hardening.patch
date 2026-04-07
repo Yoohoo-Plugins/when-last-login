@@ -1,0 +1,156 @@
+Subject: [PATCH 1/3] Security: Harden IP capture, output escaping, API safety, and destructives
+
+---
+ includes/settings.php          |  2 +-
+ includes/settings/add-ons.php  |  7 ++-----
+ when-last-login.php            | 30 +++++++++++++++---------------
+ 3 files changed, 18 insertions(+), 21 deletions(-)
+
+diff --git a/includes/settings.php b/includes/settings.php
+index 1111111..2222222 100644
+--- a/includes/settings.php
++++ b/includes/settings.php
+@@ -54,7 +54,7 @@
+ 			}
+ 		}
+
+-		echo '<a class="nav-tab '.$active.'" href="?page=when-last-login-settings&tab='.$key.'">'.$val['title'].'</a>';
++		echo '<a class="nav-tab ' . esc_attr( $active ) . '" href="?page=when-last-login-settings&tab=' . esc_attr( $key ) . '">' . esc_html( $val['title'] ) . '</a>';
+
+ 	}
+
+diff --git a/includes/settings/add-ons.php b/includes/settings/add-ons.php
+index 3333333..4444444 100644
+--- a/includes/settings/add-ons.php
++++ b/includes/settings/add-ons.php
+@@ -6,7 +6,7 @@
+ 
+     $url = 'https://yoohooplugins.com/api/add-ons-when-last-login/v1/products.php';
+ 
+-    $add_ons_request = wp_remote_get( esc_url_raw( $url ), array( 'sslverify' => false ) );
++    $add_ons_request = wp_remote_get( esc_url_raw( $url ), array( 'timeout' => 15 ) );
+ 
+     if ( ! is_wp_error( $add_ons_request ) ) {
+ 
+@@ -23,4 +23,4 @@
+ 
+ }
+ 
+-echo $content;
++echo wp_kses_post( $content );
+diff --git a/when-last-login.php b/when-last-login.php
+index 5555555..6666666 100644
+--- a/when-last-login.php
++++ b/when-last-login.php
+@@ -127,7 +127,7 @@
+     }
+
+     public static function text_domain(){
+-      load_plugin_textdomain( 'when-last-login', false, dirname( 'WLL_BASE_NAME' ) . '/languages' );
++      load_plugin_textdomain( 'when-last-login', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+     }
+
+     public static function update_notice(){
+@@ -141,8 +141,11 @@
+     }
+
+     public function wll_hide_subscription_notice(){
+-    if ( ! wp_verify_nonce( $_REQUEST['nonce'], 'wll_hide_notice_nonce' ) ) {
++      if ( ! current_user_can( 'manage_options' ) ) {
++        wp_die( -1 );
++      }
++      if ( ! wp_verify_nonce( $_POST['nonce'], 'wll_hide_notice_nonce' ) ) {
+         wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
+       }
+       update_option( 'wll_notice_hide', '1' );
+@@ -250,7 +253,7 @@
+                     $blog_id = $site->blog_id;
+-                    $blog_details = get_blog_details( $blog_id );
++                    $blog_details = get_site( $blog_id );
+                 
+                     ?><table width="100%" text-align="center" class='wp-list-table striped widefat'>          
+                     <tr>
+@@ -267,10 +270,10 @@
+                         foreach($topusers as $wllusers){
+                             echo '<tr><td>' . intval( $count ) . '</td>';
+                             echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
+-                            echo '<td>' . get_user_meta( $wllusers->ID, 'when_last_login_count', true ) . '</td>';
+-                            echo '<td>' . date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) . '</td></tr>';
++                            echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
++                            echo '<td>' . wp_date( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) . '</td></tr>';
+                             $count++;
+                         }
+@@ -310,10 +313,10 @@
+                 foreach($topusers as $wllusers){
+                     echo '<tr><td>' . intval( $count ) . '</td>';
+-                    echo '<td>' . $wllusers->display_name . '</td>';
+-                    echo '<td>' . get_user_meta( $wllusers->ID, 'when_last_login_count', true ) . '</td>';
+-                    echo '<td>' . date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) . '</td></tr>';
++                    echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
++                    echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
++                    echo '<td>' . wp_date( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) . '</td></tr>';
+                     $count++;
+                 }
+@@ -382,7 +385,7 @@
+           if ( ! empty( $when_last_login_ip_address ) && ! empty( $settings['record_ip_address'] ) ) {
+-            return "<a href='http://www.ip-adress.com/ip_tracer/". esc_attr( $when_last_login_ip_address ) ."' target='_BLANK' title='".__( 'Lookup', 'when-last-login' )."'>" . esc_html( $when_last_login_ip_address ) . "</a>";
++            return "<a href='https://www.ip-adress.com/ip_tracer/" . esc_attr( $when_last_login_ip_address ) . "' target='_blank' rel='noopener noreferrer' title='" . esc_attr__( 'Lookup', 'when-last-login' ) . "'>" . esc_html( $when_last_login_ip_address ) . '</a>';
+           } else {
+             return esc_html__( 'IP Address Not Recorded', 'when-last-login' );
+           }
+@@ -411,7 +414,7 @@
+       if( ! empty( $users->when_last_login ) ){
+         echo human_time_diff( $users->when_last_login );
+       }else{
+-        return esc_html_e( 'Never', 'when-last-login' );
++        echo esc_html__( 'Never', 'when-last-login' );
+       }
+ ?>
+       </td>
+@@ -533,11 +536,8 @@
+           }
+         } else {
+-          die( 'nonce not valid' );
++          wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
+         }
+-
+       }
+-
+     }
+
+@@ -598,11 +598,8 @@
+             }
+           } else {
+-            die( 'nonce not valid.' );
++            wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
+           }
+         }
+-
+         // Remove old login records (90+ days).
+         if ( isset( $_REQUEST['wll_remove_old_records'] ) ) {
+@@ -676,16 +673,17 @@
+     public static function wll_get_user_ip_address(){
+
+-      if( !empty( $_SERVER['HTTP_CLIENT_IP'] ) ){
+-        $ip = $_SERVER['HTTP_CLIENT_IP'];
+-      } else if ( !empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ){
+-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
++      if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
++        $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_CLIENT_IP'] ) );
++      } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
++        $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
+       } else {
+-        $ip = $_SERVER['REMOTE_ADDR'];
++        $ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
+       }
+
+       $ip = apply_filters( 'wll_user_ip_address', $ip );
+
+       if ( apply_filters( 'wll_force_anon_ip', false ) ) {
+         return $ip;
+       } else {
+         return IpAnonymizer::anonymizeIp( $ip );
+       }
+-      
+-      return IpAnonymizer::anonymizeIp( $ip );
+     }
