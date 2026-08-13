@@ -54,9 +54,14 @@ class When_Last_Login {
       add_action( 'user_register', array( $this, 'wll_user_register' ), 10, 1 );
       add_action( 'two_factor_user_authenticated', array( $this, 'two_factor_user_authenticated' ), 10, 2 );
 
-      //Admin actions
-      add_action( 'wp_dashboard_setup', array( $this, 'admin_dashboard_widget' ) );      
-      add_action( 'admin_notices', array( $this, 'update_notice' ) );
+      //Admin actions - only load if not in streamline mode
+      // Note: Add-ons should register their own admin_menu hooks
+      $hide_admin = isset( $settings['hide_admin_menu'] ) && intval( $settings['hide_admin_menu'] ) === 1;
+
+      if ( ! $hide_admin ) {
+        add_action( 'wp_dashboard_setup', array( $this, 'admin_dashboard_widget' ) );
+        add_action( 'admin_notices', array( $this, 'update_notice' ) );
+      }
 
       add_action( 'wp_ajax_wll_hide_subscription_notice', array( $this, 'wll_hide_subscription_notice' ) );
       add_action( 'wp_ajax_wll_check_migration_status', array( $this, 'wll_check_migration_status' ) );
@@ -72,12 +77,13 @@ class When_Last_Login {
       add_action( 'pmpro_memberslist_extra_cols_body', array( $this, 'pmpro_memberlist_add_column_data' ) );
       add_filter( 'pmpro_memberslist_csv_extra_columns', array( $this, 'pmpro_csv_export_columns' ) );
       add_filter( 'pmpro_memberslist_csv_extra_column_data', array( $this, 'pmpro_csv_export_row' ), 10, 2 );
-      add_action( 'admin_menu', array( $this, 'wll_settings_page' ), 9 );
-      add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
-      add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
-
-      add_filter( 'plugin_row_meta', array( $this, 'wll_plugin_row_meta' ), 10, 2 );
-      add_filter( 'plugin_action_links_' . WLL_BASENAME, array( $this, 'wll_plugin_action_links' ), 10, 2 );
+      if ( ! $hide_admin ) {
+        add_action( 'admin_menu', array( $this, 'wll_settings_page' ), 9 );
+        add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
+        add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
+        add_filter( 'plugin_row_meta', array( $this, 'wll_plugin_row_meta' ), 10, 2 );
+        add_filter( 'plugin_action_links_' . WLL_BASENAME, array( $this, 'wll_plugin_action_links' ), 10, 2 );
+      }
 
       /**
       * Multisite support
@@ -671,6 +677,7 @@ class When_Last_Login {
           $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
           $wll_settings['track_all_records'] = isset( $_POST['wll_track_all_records'] ) && sanitize_text_field( $_POST['wll_track_all_records'] ) == '1' ? 1 : 0;
           $wll_settings['show_wc_last_active'] = isset( $_POST['wll_show_wc_last_active'] ) && sanitize_text_field( $_POST['wll_show_wc_last_active'] ) == '1' ? 1 : 0;
+          $wll_settings['hide_admin_menu'] = isset( $_POST['wll_hide_admin_menu'] ) && sanitize_text_field( $_POST['wll_hide_admin_menu'] ) == '1' ? 1 : 0;
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 

@@ -14,6 +14,7 @@ $settings = get_option( 'wll_settings' );
 if ( isset( $settings['record_ip_address'] ) && intval( $settings['record_ip_address'] ) == 1 ) { $checked = 1; } else { $checked = 0; }
 $track_all_records = isset( $settings['track_all_records'] ) ? intval( $settings['track_all_records'] ) : 1;
 $show_wc_last_active = isset( $settings['show_wc_last_active'] ) && intval( $settings['show_wc_last_active'] ) == 1;
+$hide_admin_menu = isset( $settings['hide_admin_menu'] ) && intval( $settings['hide_admin_menu'] ) == 1;
 $woocommerce_active = class_exists( 'WooCommerce' );
 ?>
 <table class="form-table">
@@ -41,6 +42,11 @@ $woocommerce_active = class_exists( 'WooCommerce' );
 			<small><?php esc_html_e( 'Display the WooCommerce last active column on the users list. Shows when customers were last active on your store.', 'when-last-login' ); ?></small></td>
 	</tr>
 	<?php endif; ?>
+	<tr>
+		<th><?php esc_html_e( 'Hide Admin Menu (Streamline Mode)', 'when-last-login' ); ?><br></th>
+		<td><input type='checkbox' value='1' name='wll_hide_admin_menu' <?php checked( 1, $hide_admin_menu ); ?>/>
+			<small><?php esc_html_e( 'Hide the WLL admin menu and dashboard widget. Login tracking continues in the background. Users list column still shows last login data.', 'when-last-login' ); ?></small></td>
+	</tr>
 
 	<?php if ( $track_all_records ) : ?>
 	<tr>
