@@ -64,6 +64,9 @@ class When_Last_Login {
 
       add_action( 'wp_ajax_wll_hide_subscription_notice', array( $this, 'wll_hide_subscription_notice' ) );
       add_action( 'wp_ajax_wll_check_migration_status', array( $this, 'wll_check_migration_status' ) );
+      add_action( 'wp_ajax_wll_migration_runner_status', array( $this, 'wll_migration_runner_status' ) );
+      add_action( 'wp_ajax_wll_migration_run_batch', array( $this, 'wll_migration_run_batch' ) );
+      add_action( 'wp_ajax_wll_migration_reset', array( $this, 'wll_migration_reset' ) );
 
       //Setting up columns.
       add_filter( 'manage_users_columns', array( $this, 'column_header'), 10, 1 );
@@ -197,6 +200,130 @@ class When_Last_Login {
         'complete' => empty( $status ) || $status['status'] === 'complete',
       ) );
     }
+
+    /**
+     * Migration Runner page callback.
+     *
+     * @since  1.3.0
+     */
+    public function wll_migration_runner_callback() {
+      // Enqueue jQuery for AJAX.
+      wp_enqueue_script( 'jquery' );
+
+      // Localize script for AJAX nonce.
+      wp_add_inline_script( 'jquery', '
+        var wllMigration = { nonce: "' . wp_create_nonce( 'wll_migration_runner' ) . '", ajaxurl: "' . admin_url( 'admin-ajax.php' ) . '" };
+      ', 'before' );
+
+      // Add minimal CSS.
+      echo '<style>
+        .wll-migration-badge { display:inline-block; padding:2px 10px; border-radius:3px; font-size:12px; font-weight:bold; }
+        .wll-status-complete { background:#d4edda; color:#155724; }
+        .wll-status-running { background:#fff3cd; color:#856404; }
+        .wll-status-pending { background:#d1ecf1; color:#0c5460; }
+      </style>';
+
+      include WLL_DIR_PATH . '/includes/settings/migration-runner.php';
+    }
+
+    /**
+     * AJAX: Get migration runner status.
+     *
+     * @since  1.3.0
+     */
+    public function wll_migration_runner_status() {
+      if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Permission denied' );
+      }
+
+      $status    = get_option( 'wll_migration_status', array() );
+      $migrated  = isset( $status['migrated'] ) ? (int) $status['migrated'] : 0;
+      $total     = isset( $status['total'] ) ? (int) $status['total'] : 0;
+
+      // Get live remaining count.
+      $remaining = 0;
+      if ( class_exists( 'WLL_DB' ) ) {
+        $remaining = (int) WLL_DB::count_posts_to_migrate();
+        if ( $remaining > 0 && $total > 0 ) {
+          $total = $migrated + $remaining;
+        }
+      }
+
+      wp_send_json_success( array(
+        'status'    => isset( $status['status'] ) ? $status['status'] : 'unknown',
+        'migrated'  => $migrated,
+        'total'     => $total,
+        'remaining' => $remaining,
+        'complete'  => isset( $status['status'] ) && $status['status'] === 'complete',
+      ) );
+    }
+
+    /**
+     * AJAX: Run a single migration batch.
+     *
+     * @since  1.3.0
+     */
+    public function wll_migration_run_batch() {
+      if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Permission denied' );
+      }
+
+      if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'wll_migration_runner' ) ) {
+        wp_send_json_error( 'Invalid nonce' );
+      }
+
+      // Clear lock to allow manual batch run.
+      delete_transient( 'wll_migration_lock' );
+
+      // Run the batch directly (bypass cron).
+      if ( class_exists( 'WLL_DB' ) ) {
+        WLL_DB::migrate_batch();
+      }
+
+      $status    = get_option( 'wll_migration_status', array() );
+      $migrated  = isset( $status['migrated'] ) ? (int) $status['migrated'] : 0;
+      $total     = isset( $status['total'] ) ? (int) $status['total'] : 0;
+      $remaining = 0;
+      if ( class_exists( 'WLL_DB' ) ) {
+        $remaining = (int) WLL_DB::count_posts_to_migrate();
+        if ( $remaining > 0 && $total > 0 ) {
+          $total = $migrated + $remaining;
+        }
+      }
+
+      $is_complete = isset( $status['status'] ) && $status['status'] === 'complete';
+
+      wp_send_json_success( array(
+        'migrated_in_batch' => $migrated - ( isset( $_POST['prev_migrated'] ) ? (int) $_POST['prev_migrated'] : 0 ),
+        'migrated'          => $migrated,
+        'total'             => $total,
+        'remaining'         => $remaining,
+        'complete'          => $is_complete,
+      ) );
+    }
+
+    /**
+     * AJAX: Reset migration status.
+     *
+     * @since  1.3.0
+     */
+    public function wll_migration_reset() {
+      if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Permission denied' );
+      }
+
+      if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'wll_migration_runner' ) ) {
+        wp_send_json_error( 'Invalid nonce' );
+      }
+
+      delete_option( 'wll_db_version' );
+      delete_option( 'wll_migration_status' );
+      delete_transient( 'wll_migration_lock' );
+      wp_clear_scheduled_hook( 'wll_migrate_login_records' );
+
+      wp_send_json_success( 'Migration reset' );
+    }
+
 
     public static function load_js_for_notice(){
       if( get_option( 'wll_notice_hide' ) !== '1'){
@@ -602,6 +729,7 @@ class When_Last_Login {
 
       add_submenu_page( 'when-last-login-settings', esc_html__('Add Ons', 'when-last-login'), __('Add Ons', 'when-last-login'), 'manage_options', 'when-last-login-settings&tab=add-ons', array( $this, 'wll_settings_callback' ) );
 
+      add_submenu_page( 'when-last-login-settings', esc_html__('Migration Runner', 'when-last-login'), __('Migration Runner', 'when-last-login'), 'manage_options', 'wll-migration-runner', array( $this, 'wll_migration_runner_callback' ) );
       do_action( 'wll_settings_admin_menu_item' );
 
     }
