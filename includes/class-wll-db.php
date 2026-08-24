@@ -13,6 +13,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+
+// Include migration helper.
+require_once __DIR__ . "/migration-helper.php";
 /**
  * Class WLL_DB
  *
@@ -424,9 +427,8 @@ class WLL_DB {
 			) );
 
 			// Schedule migration.
-			if ( ! wp_next_scheduled( 'wll_migrate_login_records' ) ) {
-				wp_schedule_single_event( time() + 30, 'wll_migrate_login_records' );
-			}
+			wll_schedule_migration_batch( 30 );
+
 		} else {
 			// No posts to migrate.
 			update_option( 'wll_migration_status', array(
@@ -642,7 +644,7 @@ class WLL_DB {
 		if ( $remaining > 0 ) {
 			$status['status'] = 'in_progress';
 			update_option( 'wll_migration_status', $status );
-			wp_schedule_single_event( time() + 5, 'wll_migrate_login_records' );
+			wll_schedule_migration_batch( 5 );
 		} else {
 			$status['status']    = 'complete';
 			$status['completed'] = current_time( 'mysql' );
