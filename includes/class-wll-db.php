@@ -438,8 +438,11 @@ class WLL_DB {
 			) );
 		}
 
-		// Update database version.
-		update_option( self::VERSION_OPTION, WLL_VER );
+		// Only set db version if no migration is needed.
+		// When posts need migration, the version is set after migrate_batch() completes.
+		if ( $posts_count === 0 ) {
+			update_option( self::VERSION_OPTION, WLL_VER );
+		}
 
 		/**
 		 * Fires after 1.3.0 upgrade completes.
@@ -574,6 +577,7 @@ class WLL_DB {
 			$status['status']    = 'complete';
 			$status['completed'] = current_time( 'mysql' );
 			update_option( 'wll_migration_status', $status );
+			update_option( self::VERSION_OPTION, self::$db_version );
 			return;
 		}
 
@@ -647,6 +651,7 @@ class WLL_DB {
 			$status['status']    = 'complete';
 			$status['completed'] = current_time( 'mysql' );
 			update_option( 'wll_migration_status', $status );
+			update_option( self::VERSION_OPTION, self::$db_version );
 		}
 
 		// Release lock after batch.

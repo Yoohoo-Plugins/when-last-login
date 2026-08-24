@@ -829,6 +829,33 @@ class When_Last_Login {
             wp_die( esc_html__( 'Invalid nonce', 'when-last-login' ) );
           }
         }
+
+        // Clean up orphaned CPT records after migration.
+        if ( isset( $_REQUEST['wll_cleanup_orphaned'] ) ) {
+          $nonce = isset( $_REQUEST['wll_cleanup_nonce'] ) ? sanitize_text_field( $_REQUEST['wll_cleanup_nonce'] ) : '';
+          if ( wp_verify_nonce( $nonce, 'wll_cleanup_orphaned' ) ) {
+            $deleted = $wpdb->query(
+              $wpdb->prepare(
+                "DELETE p, pm FROM {$wpdb->posts} p
+                 LEFT JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+                 WHERE p.post_type = %s",
+                'wll_records'
+              )
+            );
+            add_action( 'admin_notices', function() use ( $deleted ) {
+              printf(
+                '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+                sprintf(
+                  /* translators: %d: number of orphaned records deleted */
+                  esc_html__( '%d orphaned CPT records cleaned up.', 'when-last-login' ),
+                  intval( $deleted )
+                )
+              );
+            } );
+          } else {
+            wp_die( esc_html__( 'Invalid nonce', 'when-last-login' ) );
+          }
+        }
     }
 
     public function wll_plugin_action_links( $links ) {

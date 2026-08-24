@@ -118,8 +118,11 @@ function wll_upgrade_1_3_0() {
 		) );
 	}
 
-	// Update database version.
-	update_option( 'wll_db_version', '1.3.0' );
+	// Only set db version if no migration is needed.
+	// When posts need migration, the version is set after wll_migrate_records_batch() completes.
+	if ( $posts_count === 0 ) {
+		update_option( 'wll_db_version', '1.3.0' );
+	}
 
 	// Release lock after upgrade completes.
 	delete_transient( 'wll_migration_lock' );
@@ -240,6 +243,7 @@ function wll_migrate_records_batch() {
 		$status['status']    = 'complete';
 		$status['completed'] = current_time( 'mysql' );
 		update_option( 'wll_migration_status', $status );
+		update_option( 'wll_db_version', '1.3.0' );
 		return;
 	}
 
@@ -282,6 +286,7 @@ function wll_migrate_records_batch() {
 		$status['status']    = 'complete';
 		$status['completed'] = current_time( 'mysql' );
 		update_option( 'wll_migration_status', $status );
+		update_option( 'wll_db_version', '1.3.0' );
 
 		// Clean up migrated posts from the posts table.
 		if ( class_exists( 'WLL_DB' ) ) {
