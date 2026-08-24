@@ -11,6 +11,11 @@
 // Prevent direct access.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
+
+// Include migration helper if not already loaded.
+if ( ! function_exists( 'wll_schedule_migration_batch' ) ) {
+	require_once __DIR__ . "/../migration-helper.php";
+}
 }
 
 /**
@@ -103,10 +108,7 @@ function wll_upgrade_1_3_0() {
 			'status'    => 'pending',
 		) );
 
-		// Schedule migration.
-		if ( ! wp_next_scheduled( 'wll_migrate_login_records' ) ) {
-			wp_schedule_single_event( time() + 30, 'wll_migrate_login_records' );
-		}
+		wll_schedule_migration_batch( 30 );
 	} else {
 		// No posts to migrate.
 		update_option( 'wll_migration_status', array(
@@ -143,7 +145,7 @@ function wll_populate_summary_from_user_meta() {
 	$summary_table = $wpdb->prefix . 'when_last_login';
 
 	// Ensure batch size constant is defined.
-	$batch_size = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+	$batch_size = defined( "WLL_BATCH_SIZE" ) ? WLL_BATCH_SIZE : 50;
 
 	// Use offset-based pagination for reliability.
 	$offset = 0;
@@ -220,7 +222,7 @@ function wll_migrate_records_batch() {
 	set_transient( 'wll_migration_lock', true, 5 * MINUTE_IN_SECONDS );
 
 	// Ensure batch size constant is defined.
-	$default_batch = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+	$default_batch = defined( "WLL_BATCH_SIZE" ) ? WLL_BATCH_SIZE : 50;
 	$batch_size = apply_filters( 'wll_migration_batch_size', $default_batch );
 	$records_table = $wpdb->prefix . 'wll_login_records';
 
@@ -277,7 +279,7 @@ function wll_migrate_records_batch() {
 
 	// Schedule next batch.
 	if ( $migrated > 0 ) {
-		wp_schedule_single_event( time() + 10, 'wll_migrate_login_records' );
+		wll_schedule_migration_batch( 10 );
 	} else {
 		$status['status']    = 'complete';
 		$status['completed'] = current_time( 'mysql' );
