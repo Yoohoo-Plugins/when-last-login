@@ -51,6 +51,49 @@ if ( isset( $tabs['login-records'] ) ) {
 $wll_migration_status = get_option( 'wll_migration_status', array() );
 $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] ) && $wll_migration_status['status'] !== 'complete';
 
+// Handle migration restart.
+if ( isset( $_GET['wll_restart_migration'] ) && check_admin_referer( 'wll_restart_migration' ) ) {
+	delete_option( 'wll_migration_status' );
+	delete_option( 'wll_db_version' );
+	delete_transient( 'wll_migration_lock' );
+
+	if ( class_exists( 'WLL_DB' ) ) {
+		WLL_DB::check_db_version();
+	}
+
+	if ( function_exists( 'wll_schedule_migration_batch' ) ) {
+		wll_schedule_migration_batch( 5 );
+	}
+
+	wp_redirect( add_query_arg( array( 'wll_migration_restarted' => '1' ), admin_url( 'admin.php?page=when-last-login-settings' ) ) );
+	exit;
+}
+
+if ( isset( $_GET['wll_migration_restarted'] ) ) {
+	?>
+	<div class="notice notice-success is-dismissible">
+		<p><?php esc_html_e( 'Migration has been restarted. It will process in the background via Action Scheduler.', 'when-last-login' ); ?></p>
+	</div>
+	<?php
+}
+
+$wll_migration_status = get_option( 'wll_migration_status', array() );
+$wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] ) && $wll_migration_status['status'] !== 'complete';
+
+$wll_migration_stuck = false;
+if ( ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] ) && $wll_migration_status['status'] === 'pending' ) {
+	// Check if pending for more than 10 minutes.
+	$started = isset( $wll_migration_status['started'] ) ? strtotime( $wll_migration_status['started'] ) : 0;
+	if ( $started > 0 && ( time() - $started ) > 10 * MINUTE_IN_SECONDS ) {
+		$wll_migration_stuck = true;
+	}
+}
+if ( ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] ) && $wll_migration_status['status'] === 'in_progress' ) {
+	// In-progress but no batches running (lock expired).
+	if ( ! get_transient( 'wll_migration_lock' ) ) {
+		$wll_migration_stuck = true;
+	}
+}
 ?>
 
 <?php if ( $wll_migration_active ) : ?>
@@ -71,6 +114,27 @@ $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migratio
 	}, 5000);
 }(jQuery));
 </script>
+<?php endif; ?>
+
+<?php if ( $wll_migration_stuck ) : ?>
+<div id="wll-migration-stuck-notice" class="notice notice-warning">
+	<p>
+		<strong><?php esc_html_e( 'When Last Login: Migration appears stuck', 'when-last-login' ); ?></strong><br>
+		<?php
+		printf(
+			/* translators: %d migrated, %d total */
+			esc_html__( 'Migration has %1$d of %2$d records processed but seems to have stalled. You can restart it below.', 'when-last-login' ),
+			isset( $wll_migration_status['migrated'] ) ? intval( $wll_migration_status['migrated'] ) : 0,
+			isset( $wll_migration_status['total'] ) ? intval( $wll_migration_status['total'] ) : 0
+		);
+		?>
+	</p>
+	<p>
+		<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=when-last-login-settings&wll_restart_migration=1' ), 'wll_restart_migration' ) ); ?>" class="button button-primary">
+			<?php esc_html_e( 'Restart Migration', 'when-last-login' ); ?>
+		</a>
+	</p>
+</div>
 <?php endif; ?>
 
 <?php
