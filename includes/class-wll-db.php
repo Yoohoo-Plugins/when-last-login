@@ -463,7 +463,7 @@ class WLL_DB {
 		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
 
 		// Ensure batch size constant is defined.
-		$batch_size = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+		$batch_size = defined( "WLL_BATCH_SIZE" ) ? WLL_BATCH_SIZE : 50;
 
 		// Use offset-based pagination for reliability.
 		$offset = 0;
@@ -560,8 +560,8 @@ class WLL_DB {
 		set_transient( 'wll_migration_lock', true, 5 * MINUTE_IN_SECONDS );
 
 		// Ensure batch size constant is defined.
-		$default_batch = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
-		$batch_size = apply_filters( 'wll_migration_batch_size', $default_batch * 2 );
+		$default_batch = defined( "WLL_BATCH_SIZE" ) ? WLL_BATCH_SIZE : 50;
+		$batch_size = apply_filters( 'wll_migration_batch_size', $default_batch );
 
 		// Direct SQL avoids WP_Query overhead (filters, object cache, extra joins).
 		$post_ids = $wpdb->get_col(

@@ -145,7 +145,7 @@ function wll_populate_summary_from_user_meta() {
 	$summary_table = $wpdb->prefix . 'when_last_login';
 
 	// Ensure batch size constant is defined.
-	$batch_size = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+	$batch_size = defined( "WLL_BATCH_SIZE" ) ? WLL_BATCH_SIZE : 50;
 
 	// Use offset-based pagination for reliability.
 	$offset = 0;
@@ -222,7 +222,7 @@ function wll_migrate_records_batch() {
 	set_transient( 'wll_migration_lock', true, 5 * MINUTE_IN_SECONDS );
 
 	// Ensure batch size constant is defined.
-	$default_batch = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+	$default_batch = defined( "WLL_BATCH_SIZE" ) ? WLL_BATCH_SIZE : 50;
 	$batch_size = apply_filters( 'wll_migration_batch_size', $default_batch );
 	$records_table = $wpdb->prefix . 'wll_login_records';
 
