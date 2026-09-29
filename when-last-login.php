@@ -141,8 +141,11 @@ class When_Last_Login {
     }
 
     public function wll_hide_subscription_notice(){
-    if ( ! wp_verify_nonce( $_REQUEST['nonce'], 'wll_hide_notice_nonce' ) ) {
-        wp_die( __( 'Nonce is invalid', 'pmpro-pdf-invoices' ) );
+      if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( -1 );
+      }
+      if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['nonce'] ) ), 'wll_hide_notice_nonce' ) ) {
+        wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
       }
       update_option( 'wll_notice_hide', '1' );
     }
@@ -364,8 +367,8 @@ class When_Last_Login {
                         foreach($topusers as $wllusers){
                             echo '<tr><td>' . intval( $count ) . '</td>';
                             echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
-                            echo '<td>' . get_user_meta( $wllusers->ID, 'when_last_login_count', true ) . '</td>';
-                            echo '<td>' . date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) . '</td></tr>';
+                            echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
+                            echo '<td>' . esc_html( date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
                             $count++;
                         }
                       
@@ -413,9 +416,9 @@ class When_Last_Login {
                 
                 foreach($topusers as $wllusers){
                     echo '<tr><td>' . intval( $count ) . '</td>';
-                    echo '<td>' . $wllusers->display_name . '</td>';
-                    echo '<td>' . get_user_meta( $wllusers->ID, 'when_last_login_count', true ) . '</td>';
-                    echo '<td>' . date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) . '</td></tr>';
+                    echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
+                    echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
+                    echo '<td>' . esc_html( date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
                     $count++;
                 }
               
@@ -478,7 +481,7 @@ class When_Last_Login {
           $when_last_login_ip_address = get_user_meta( $id, 'wll_user_ip_address', true );
 
           if ( $when_last_login_ip_address && $when_last_login_ip_address != "" && $settings['record_ip_address'] != "") {
-            return "<a href='http://www.ip-adress.com/ip_tracer/". esc_attr( $when_last_login_ip_address ) ."' target='_BLANK' title='".__( 'Lookup', 'when-last-login' )."'>" . esc_html( $when_last_login_ip_address ) . "</a>";
+            return "<a href='" . esc_url( 'https://www.ip-adress.com/ip_tracer/' . $when_last_login_ip_address ) . "' target='_BLANK' title='" . esc_attr__( 'Lookup', 'when-last-login' ) . "'>" . esc_html( $when_last_login_ip_address ) . "</a>";
           } else {
             return esc_html__( 'IP Address Not Recorded', 'when-last-login' );
           }
@@ -615,6 +618,10 @@ class When_Last_Login {
       if ( 'admin.php' == $pagenow && 'when-last-login-settings' != $_GET['page'] ) {
         return;
       }
+
+      if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+      }
       
       $sql = "DELETE p, pm FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta pm ON pm.post_id = p.ID WHERE p.post_type = 'wll_records'";
 
@@ -638,9 +645,13 @@ class When_Last_Login {
         $nonce = $_REQUEST['wll_remove_records_nonce'];
         if ( wp_verify_nonce( $nonce, 'wll_remove_records_nonce' ) ) {
 
-          $date = apply_filters( 'wll_automatically_remove_logs_date', date( 'Y-m-d', strtotime( '-3 months' ) ) );
+          $date = apply_filters( 'wll_automatically_remove_logs_date', gmdate( 'Y-m-d', strtotime( '-3 months' ) ) );
 
-          $sql .= " AND p.post_date <= '$date'";
+          $sql = $wpdb->prepare(
+            "DELETE p, pm FROM {$wpdb->posts} p LEFT JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID WHERE p.post_type = %s AND p.post_date <= %s",
+            'wll_records',
+            $date
+          );
 
           if ( $wpdb->query( $sql ) > 0 ) {
             add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
@@ -683,7 +694,7 @@ class When_Last_Login {
         case 'wll-ip-address':
           $ip_address = get_post_meta( $post_id, 'wll_user_ip_address', true );
           if ( ! empty( $ip_address ) && $ip_address != "" ) {
-            echo "<a href='http://www.ip-adress.com/ip_tracer/". esc_attr( $ip_address ) ."' target='_BLANK' title='".__( 'Lookup', 'when-last-login' )."'>" . esc_html( $ip_address ) . "</a>";
+            echo "<a href='" . esc_url( 'https://www.ip-adress.com/ip_tracer/' . $ip_address ) . "' target='_BLANK' title='" . esc_attr__( 'Lookup', 'when-last-login' ) . "'>" . esc_html( $ip_address ) . "</a>";
           } else {
             esc_html_e( 'IP Address Not Recorded', 'when-last-login' );
           }
@@ -718,22 +729,37 @@ class When_Last_Login {
 
     public static function wll_get_user_ip_address(){
 
-      if( !empty( $_SERVER['HTTP_CLIENT_IP'] ) ){
-        $ip = $_SERVER['HTTP_CLIENT_IP'];
-      } else if ( !empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ){
-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-      } else {
-        $ip = $_SERVER['REMOTE_ADDR'];
+      $candidates = array();
+
+      if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
+        $candidates[] = wp_unslash( $_SERVER['HTTP_CLIENT_IP'] );
+      }
+
+      if ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+        foreach ( explode( ',', wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) as $part ) {
+          $candidates[] = trim( $part );
+        }
+      }
+
+      if ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
+        $candidates[] = wp_unslash( $_SERVER['REMOTE_ADDR'] );
+      }
+
+      $ip = '';
+      foreach ( $candidates as $candidate ) {
+        $candidate = sanitize_text_field( $candidate );
+        if ( $candidate && filter_var( $candidate, FILTER_VALIDATE_IP ) ) {
+          $ip = $candidate;
+          break;
+        }
       }
 
       $ip = apply_filters( 'wll_user_ip_address', $ip );
 
       if ( apply_filters( 'wll_force_anon_ip', false ) ) {
         return $ip;
-      } else {
-        return IpAnonymizer::anonymizeIp( $ip );
       }
-      
+
       return IpAnonymizer::anonymizeIp( $ip );
     }
 

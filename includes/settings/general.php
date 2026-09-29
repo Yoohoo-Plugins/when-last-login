@@ -1,4 +1,10 @@
-<?php $settings = get_option( 'wll_settings' ); ?>
+<?php
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+$settings = get_option( 'wll_settings' ); ?>
 
 <?php if( isset( $settings['record_ip_address'] ) && intval( $settings['record_ip_address'] ) == 1 ){ $checked = 1; } else { $checked = 0; } ?>
 <table class="form-table">

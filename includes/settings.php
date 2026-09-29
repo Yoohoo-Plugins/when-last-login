@@ -1,5 +1,9 @@
 <?php
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 $tabs = array(
 	'general' => array(
 		'title' => __( 'General', 'when-last-login' ),
@@ -34,7 +38,7 @@ $tabs = apply_filters( 'wll_settings_page_tabs', $tabs );
 			}
 		}
 
-		echo '<a class="nav-tab '.$active.'" href="?page=when-last-login-settings&tab='.$key.'">'.$val['title'].'</a>';
+		echo '<a class="nav-tab ' . esc_attr( $active ) . '" href="?page=when-last-login-settings&tab=' . esc_attr( $key ) . '">' . esc_html( $val['title'] ) . '</a>';
 
 	}
 
