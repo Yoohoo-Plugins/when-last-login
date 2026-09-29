@@ -61,7 +61,8 @@ class When_Last_Login {
       add_action( 'init', array( $this, 'login_record_cp' ) );
 
       add_action( 'admin_menu', array( $this, 'wll_settings_page' ), 9 );
-      add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
+      add_action( 'admin_init', array( $this, 'wll_settings_page_head' ) );
+      add_action( 'admin_notices', array( $this, 'wll_admin_notices' ) );
       add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
 
       add_filter( 'plugin_row_meta', array( $this, 'wll_plugin_row_meta' ), 10, 2 );
@@ -554,24 +555,38 @@ class When_Last_Login {
 
     public function wll_settings_page_head(){
 
-      $wll_settings = array();
+      if ( empty( $_GET['page'] ) || 'when-last-login-settings' !== $_GET['page'] ) {
+        return;
+      }
 
-      if( isset( $_POST['wll_save_settings'] ) ){
+      if ( isset( $_POST['wll_save_settings'] ) ) {
 
-        if( wp_verify_nonce( $_POST['_nonce'], 'wll_settings_nonce' ) ) {
+        if ( ! current_user_can( 'manage_options' ) ) {
+          wp_die( esc_html__( 'You do not have permission to save these settings.', 'when-last-login' ) );
+        }
 
-          $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( $_POST['wll_login_record_user_access'] ) : "";
-          $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
-          $wll_settings['show_all_login_records'] = isset( $_POST['wll_all_login_records'] ) && sanitize_text_field( $_POST['wll_all_login_records'] ) == '1'  ? 1 : 0;
+        if ( isset( $_POST['_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_nonce'] ) ), 'wll_settings_nonce' ) ) {
+
+          $wll_settings = array();
+          $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( wp_unslash( $_POST['wll_login_record_user_access'] ) ) : '';
+          $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( wp_unslash( $_POST['wll_record_user_ip_address'] ) ) == '1' ? 1 : 0;
+          $wll_settings['show_all_login_records'] = isset( $_POST['wll_all_login_records'] ) && sanitize_text_field( wp_unslash( $_POST['wll_all_login_records'] ) ) == '1' ? 1 : 0;
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 
-          if ( update_option( 'wll_settings', $wll_settings ) ) {
-            //show admin notice here.
-            add_action( 'admin_notices', array( $this, 'wll_admin_notices' ) );
+          update_option( 'wll_settings', $wll_settings );
+
+          $redirect_args = array(
+            'page' => 'when-last-login-settings',
+            'wll-settings-updated' => '1',
+          );
+          if ( ! empty( $_GET['tab'] ) ) {
+            $redirect_args['tab'] = sanitize_text_field( wp_unslash( $_GET['tab'] ) );
           }
+          wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) );
+          exit;
         } else {
-          die( 'nonce not valid' );
+          wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
         }
 
       }
@@ -579,6 +594,10 @@ class When_Last_Login {
     }
 
     public function wll_admin_notices() {
+
+      if ( empty( $_GET['wll-settings-updated'] ) ) {
+        return;
+      }
     ?>
       <div class="notice notice-success is-dismissible">
         <p><?php esc_html_e( 'Settings saved successfully.', 'when-last-login' ); ?></p>

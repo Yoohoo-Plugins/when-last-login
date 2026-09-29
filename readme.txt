@@ -98,6 +98,7 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 * SECURITY: Enable SSL verification for the add-ons request and sanitize the remote response before output.
 * SECURITY: Use HTTPS for IP lookup links and validate captured IP addresses.
 * SECURITY: Escape dashboard widget output and require manage_options for admin tools.
+* BUG FIX: Show a success notice after saving settings.
 
 = 1.2.3 - 2025-07-21 =
 * ENHANCEMENT: Added support for 2FA plugin.
