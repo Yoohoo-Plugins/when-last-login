@@ -5,7 +5,7 @@ Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_i
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.3
+Stable tag: 1.2.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -94,6 +94,9 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 2. When Last Login - Show top 3 user login (includes 'administrators' in free version)
 
 == Changelog ==
+= 1.2.4 - 2026-09-29 =
+* SECURITY: Enable SSL verification for the add-ons request and sanitize the remote response before output.
+
 = 1.2.3 - 2025-07-21 =
 * ENHANCEMENT: Added support for 2FA plugin.
 
@@ -164,6 +167,9 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 * First Release
 
 == Upgrade Notice ==
+= 1.2.4 =
+* Security update. Please update immediately.
+
 = 1.2.3 =
 * Upgrade to support 2FA plugin.
 
