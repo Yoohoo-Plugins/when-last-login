@@ -19,6 +19,18 @@ class When_Last_Login {
     /** Refers to a single instance of this class. */
     private static $instance = null;
 
+    /** User IDs already recorded during this request, so one login is stored once. */
+    private static $recorded_login_user_ids = array();
+
+    /** User IDs whose auth cookie was suppressed before login finished. */
+    private static $incomplete_login_user_ids = array();
+
+    /** User already logged in at the start of the request. A later cookie is a refresh. */
+    private static $already_authenticated_user_id = 0;
+
+    /** Whether the send_auth_cookies watcher is attached. */
+    private static $watching_auth_cookies = false;
+
     /**
     * Initializes the plugin by setting localization, filters, and administration functions.
     */
@@ -39,6 +51,10 @@ class When_Last_Login {
 
       //Create the custom meta upon login
       add_action( 'wp_login', array( $this, 'last_login'), 10, 2 );
+      // Fires for wp_signon() and for logins that only call wp_set_auth_cookie()
+      // (SSO, WooCommerce Subscriptions auto-login, other custom auth).
+      add_action( 'set_logged_in_cookie', array( $this, 'prepare_login_from_cookie' ), 10, 6 );
+      add_action( 'init', array( $this, 'remember_already_authenticated_user' ), 1 );
       add_action( 'user_register', array( $this, 'wll_user_register' ), 10, 1 );
       add_action( 'two_factor_user_authenticated', array( $this, 'two_factor_user_authenticated' ), 10, 2 );
 
@@ -179,6 +195,96 @@ class When_Last_Login {
 	}
 
 	/**
+	 * Remember who was already logged in once WordPress has validated the cookie.
+	 */
+	public static function remember_already_authenticated_user() {
+		self::$already_authenticated_user_id = (int) get_current_user_id();
+	}
+
+	/**
+	 * Attach the cookie watcher after authentication filters.
+	 *
+	 * set_logged_in_cookie runs before send_auth_cookies, so this is added
+	 * after Two Factor's PHP_INT_MAX suppression on the password step.
+	 */
+	public static function prepare_login_from_cookie( $logged_in_cookie, $expire, $expiration, $user_id, $scheme = 'logged_in', $token = '' ) {
+		unset( $logged_in_cookie, $expire, $expiration, $user_id, $scheme, $token );
+
+		if ( self::$watching_auth_cookies ) {
+			return;
+		}
+
+		add_filter( 'send_auth_cookies', array( __CLASS__, 'record_login_if_cookies_sent' ), PHP_INT_MAX, 6 );
+		self::$watching_auth_cookies = true;
+	}
+
+	/**
+	 * Record a login only when the auth cookie will be sent.
+	 *
+	 * wp_set_current_user() runs on every request and is not a login.
+	 *
+	 * @return bool
+	 */
+	public static function record_login_if_cookies_sent( $send, $expire = 0, $expiration = 0, $user_id = 0, $scheme = '', $token = '' ) {
+		unset( $expire, $expiration, $scheme, $token );
+
+		$user_id = (int) $user_id;
+		if ( $user_id < 1 ) {
+			return $send;
+		}
+
+		/*
+		 * Two Factor blocks the cookie at PHP_INT_MAX until the second factor
+		 * succeeds, then fires wp_login anyway. A global "do not send cookies"
+		 * filter at a normal priority (the WordPress test suite does this) is
+		 * not that challenge: wp_login still represents a finished login.
+		 */
+		if ( self::login_cookies_blocked_for_challenge() ) {
+			self::$incomplete_login_user_ids[ $user_id ] = true;
+			return $send;
+		}
+
+		unset( self::$incomplete_login_user_ids[ $user_id ] );
+
+		if ( ! $send ) {
+			return $send;
+		}
+
+		if ( self::$already_authenticated_user_id === $user_id ) {
+			return $send;
+		}
+
+		$user = get_user_by( 'id', $user_id );
+		if ( $user instanceof WP_User ) {
+			self::last_login( $user->user_login, $user );
+		}
+
+		return $send;
+	}
+
+	/**
+	 * Two Factor adds __return_false at PHP_INT_MAX on the password step and
+	 * removes it before the real cookie. A normal-priority suppression is not that.
+	 *
+	 * @return bool
+	 */
+	private static function login_cookies_blocked_for_challenge() {
+		global $wp_filter;
+
+		if ( ! isset( $wp_filter['send_auth_cookies'] ) || empty( $wp_filter['send_auth_cookies']->callbacks[ PHP_INT_MAX ] ) ) {
+			return false;
+		}
+
+		foreach ( $wp_filter['send_auth_cookies']->callbacks[ PHP_INT_MAX ] as $callback ) {
+			if ( isset( $callback['function'] ) && '__return_false' === $callback['function'] ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Track the user's login timestamp and "All Time Record". 
 	 *
 	 * @param string $user_login The username that is logging in.
@@ -186,6 +292,23 @@ class When_Last_Login {
 	 * @return void
 	 */
      public static function last_login( $user_login, $user ) {
+
+      if ( ! $user instanceof WP_User ) {
+        $user = get_user_by( 'login', (string) $user_login );
+      }
+
+      if ( ! $user instanceof WP_User || empty( $user->ID ) ) {
+        return;
+      }
+
+      // Password step of a challenge that suppressed the auth cookie.
+      if ( ! empty( self::$incomplete_login_user_ids[ $user->ID ] ) ) {
+        return;
+      }
+
+      if ( isset( self::$recorded_login_user_ids[ $user->ID ] ) ) {
+        return;
+      }
 
       global $show_login_records;
 
@@ -195,6 +318,8 @@ class When_Last_Login {
       if ( ! $record_login ) {
         return;
       }
+
+      self::$recorded_login_user_ids[ $user->ID ] = true;
 
       //get/update user meta 'when_last_login' on login and add time() to it.
       update_user_meta( $user->ID, 'when_last_login', time() );
@@ -498,10 +623,55 @@ class When_Last_Login {
      }
 
     public static function sort_by_login_date( $query ) {
-      if ( 'when_last_login' == $query->get( 'orderby' ) ) {
-        $query->set( 'orderby', 'meta_value_num' );
-        $query->set( 'meta_key', 'when_last_login' );
+      if ( ! $query instanceof WP_User_Query ) {
+        return;
       }
+
+      $orderby = $query->get( 'orderby' );
+      if ( is_array( $orderby ) || 'when_last_login' !== $orderby ) {
+        return;
+      }
+
+      // meta_key would INNER JOIN usermeta and drop users who have no
+      // when_last_login row (never logged in, and never given a 0).
+      add_action( 'pre_user_query', array( __CLASS__, 'include_users_without_login_meta' ) );
+    }
+
+    /**
+     * LEFT JOIN so users with no when_last_login row still sort. Missing meta sorts as 0.
+     *
+     * @param WP_User_Query $query User query.
+     */
+    public static function include_users_without_login_meta( $query ) {
+      global $wpdb;
+
+      if ( ! $query instanceof WP_User_Query ) {
+        return;
+      }
+
+      if ( 'when_last_login' !== $query->query_vars['orderby'] ) {
+        return;
+      }
+
+      if ( false !== strpos( $query->query_from, 'wll_last_login' ) ) {
+        return;
+      }
+
+      $order = 'DESC';
+      if ( isset( $query->query_vars['order'] ) && 'ASC' === strtoupper( (string) $query->query_vars['order'] ) ) {
+        $order = 'ASC';
+      }
+
+      $query->query_from .= $wpdb->prepare(
+        " LEFT JOIN {$wpdb->usermeta} AS wll_last_login ON ( {$wpdb->users}.ID = wll_last_login.user_id AND wll_last_login.meta_key = %s )",
+        'when_last_login'
+      );
+
+      if ( ! preg_match( '/\bDISTINCT\b/', $query->query_fields ) ) {
+        $query->query_fields = preg_replace( '/^(SQL_CALC_FOUND_ROWS\s+)?/', '$1DISTINCT ', $query->query_fields, 1 );
+      }
+
+      $query->query_orderby = "ORDER BY CAST(COALESCE(wll_last_login.meta_value, '0') AS UNSIGNED) {$order}, {$wpdb->users}.ID {$order}";
     }
 
      /*
