@@ -28,6 +28,21 @@ $settings = get_option( 'wll_settings' ); ?>
 	</tr>
 
 	<tr>
+		<th><label for="wll_widget_user_count"><?php esc_html_e( 'Dashboard widget users', 'when-last-login' ); ?></label></th>
+		<td>
+			<?php
+			$widget_count_default = defined( 'WLL_WIDGET_USER_COUNT' ) ? (int) WLL_WIDGET_USER_COUNT : 3;
+			$widget_count_val = ( is_array( $settings ) && isset( $settings['widget_user_count'] ) ) ? absint( $settings['widget_user_count'] ) : $widget_count_default;
+			if ( $widget_count_val < 3 || $widget_count_val > 10 ) {
+				$widget_count_val = $widget_count_default;
+			}
+			?>
+			<input type="number" min="3" max="10" step="1" name="wll_widget_user_count" id="wll_widget_user_count" value="<?php echo esc_attr( $widget_count_val ); ?>" class="small-text" />
+			<p class="description"><?php esc_html_e( 'How many users the Dashboard widget lists. Choose from 3 to 10. The widget keeps showing 3 until you save a different number.', 'when-last-login' ); ?></p>
+		</td>
+	</tr>
+
+	<tr>
 		<th><h2><?php esc_html_e( 'Tools', 'when-last-login' ); ?></h2></th>
 		<td></td>
 	</tr>

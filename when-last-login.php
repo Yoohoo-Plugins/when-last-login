@@ -3,7 +3,7 @@
 Plugin Name: When Last Login
 Plugin URI: https://whenlastlogin.com
 Description: See when a user logs into your WordPress site.
-Version: 1.2.4
+Version: 1.2.5
 Author: Yoohoo Plugins
 Author URI: https://yoohooplugins.com
 Text Domain: when-last-login
@@ -12,7 +12,7 @@ Domain Path: /languages
 
 use geertw\IpAnonymizer\IpAnonymizer;
 
-define( 'WLL_VER', '1.2.4' );
+define( 'WLL_VER', '1.2.5' );
 
 class When_Last_Login {
 
@@ -36,6 +36,7 @@ class When_Last_Login {
       add_action( 'admin_init', array( $this, 'admin_init' ) );
       add_action( 'plugins_loaded', array( $this, 'text_domain' ) );
       add_action( 'admin_enqueue_scripts', array( $this, 'load_js_for_notice' ) );
+      add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_dashboard_widget_scripts' ) );
 
       //Create the custom meta upon login
       add_action( 'wp_login', array( $this, 'last_login'), 10, 2 );
@@ -47,6 +48,7 @@ class When_Last_Login {
       add_action( 'admin_notices', array( $this, 'update_notice' ) );
 
       add_action( 'wp_ajax_wll_hide_subscription_notice', array( $this, 'wll_hide_subscription_notice' ) );
+      add_action( 'wp_ajax_wll_fetch_widget_data', array( $this, 'wll_fetch_widget_data_ajax' ) );
 
       //Setting up columns.
       add_filter( 'manage_users_columns', array( $this, 'column_header'), 10, 1 );
@@ -310,137 +312,321 @@ class When_Last_Login {
        register_post_type( 'wll_records', $args );
      }
 
-     /**
-     * Setup admin backend to display custom meta box for login count for admins
+    /**
+     * Setup admin backend to display custom meta box for login count for admins.
      */
-     public static function admin_dashboard_widget(){
+    public static function admin_dashboard_widget() {
 
-      global $show_widget;
+        global $show_widget;
 
-      $show_widget = apply_filters( 'when_last_login_show_admin_widget', true );
-       //only show for administrators
-       if( current_user_can( 'manage_options' ) && $show_widget ){
-        wp_add_dashboard_widget( 'when_last_login_top_users', __( 'Most Frequent Logins', 'when-last-login' ), array( 'When_Last_Login', 'admin_dashboard_widget_display' ) );
-       }
-     }
+        $show_widget = apply_filters( 'when_last_login_show_admin_widget', true );
 
-    public static function admin_dashboard_widget_display(){
+        if ( current_user_can( 'manage_options' ) && $show_widget ) {
+            wp_add_dashboard_widget(
+                'when_last_login_top_users',
+                __( 'User Login Activity', 'when-last-login' ),
+                array( 'When_Last_Login', 'admin_dashboard_widget_display' )
+            );
+        }
+    }
 
-        global $show_widget, $show_login_records;
+    /**
+     * Dashboard widget body.
+     */
+    public static function admin_dashboard_widget_display() {
 
-        if( $show_widget != true ){
+        global $show_widget;
+        global $show_login_records;
+
+        if ( true != $show_widget ) {
             return;
         }
 
-        if( is_network_admin() ){
+        $sort = self::get_widget_sort_preference();
 
+        if ( is_network_admin() ) {
             $sites = get_sites();
-                        
-            if( is_array( $sites ) ){
-            
-                foreach( $sites as $site ){
-                
-                    $blog_id = $site->blog_id;
+
+            if ( is_array( $sites ) ) {
+                foreach ( $sites as $site ) {
+                    $blog_id      = (int) $site->blog_id;
                     $blog_details = get_blog_details( $blog_id );
-                
-                    ?><table width="100%" text-align="center" class='wp-list-table striped widefat'>          
-                    <tr>
-                        <th colspan='4' style='text-align: center;'><strong><?php echo esc_html( $blog_details->blogname ) .' (<a href="'. esc_url( $blog_details->siteurl ).'" target="_BLANK">'. esc_html( $blog_details->siteurl ) . ')</a>'; ?></strong></th>
-                    </tr>                      
-                    <?php
 
-                    $user_query = new WP_User_Query( array( 'meta_key' => 'when_last_login_count', 'meta_value' => 0, 'meta_compare' => '!=', 'order' => 'DESC', 'orderby' => 'meta_value_num', 'number' => apply_filters( 'wll_top_widget_user_count', 3 ), 'blog_id' => $blog_id, 'role__not_in' => array( 'administrator' ) ) );
-
-                    $topusers = $user_query->get_results();
-
-                    if( $topusers ){
-                        ?>
-                        <tr>
-                            <th><strong>#</strong></th>
-                            <th><strong><?php esc_html_e( 'Users', 'when-last-login' ); ?></strong></th>
-                            <th><strong><?php esc_html_e( 'Login Count', 'when-last-login' ); ?></strong></th>
-                            <th><strong><?php esc_html_e( 'Last Logged In', 'when-last-login' ); ?></strong></th>
-                        </tr> 
-                    <?php
-                        
-                        $count = 1;
-                        
-                        foreach($topusers as $wllusers){
-                            echo '<tr><td>' . intval( $count ) . '</td>';
-                            echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
-                            echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
-                            echo '<td>' . esc_html( date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
-                            $count++;
-                        }
-                      
-                    } else {
-
-                        echo '<tr><td colspan="4">'. esc_html__('No data yet', 'when-last-login').'</td></tr>';
-            
+                    if ( ! $blog_details ) {
+                        continue;
                     }
 
-                    ?></table><br/><?php
-
+                    echo '<h3 style="text-align:center;margin:12px 0 8px;">' . esc_html( $blog_details->blogname ) . ' (<a href="' . esc_url( $blog_details->siteurl ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $blog_details->siteurl ) . '</a>)</h3>';
+                    // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in the renderer.
+                    echo self::render_widget_sort_controls( $blog_id, $sort );
+                    // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in the renderer.
+                    echo self::render_widget_table( $sort, $blog_id );
                 }
-             
-                ?>
 
-                <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php _e( 'View All Users', 'when-last-login' ); ?></a>
-
-                <?php if( $show_login_records == true ){ ?>
-                    <a style="float:right" href="<?php echo admin_url( 'edit.php?post_type=wll_records' ); ?>"><?php _e( 'View Login Records', 'when-last-login' ); } //end the if filter check here ?></a>
-                <?php                
-                    
+                echo '<a href="' . esc_url( admin_url( 'users.php?orderby=when_last_login&order=desc' ) ) . '">' . esc_html__( 'View All Users', 'when-last-login' ) . '</a>';
+                if ( true == $show_login_records ) {
+                    echo ' | <a href="' . esc_url( admin_url( 'edit.php?post_type=wll_records' ) ) . '">' . esc_html__( 'View Login Records', 'when-last-login' ) . '</a>';
+                }
             }
-        
         } else {
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in the renderer.
+            echo self::render_widget_sort_controls( 0, $sort );
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in the renderer.
+            echo self::render_widget_table( $sort, 0 );
 
-            ?><table width="100%" text-align="center" class='wp-list-table striped widefat'>          
-
-            <?php
-
-            $user_query = new WP_User_Query( array( 'meta_key' => 'when_last_login_count', 'meta_value' => 0, 'meta_compare' => '!=', 'order' => 'DESC', 'orderby' => 'meta_value_num', 'number' => apply_filters( 'wll_top_widget_user_count', 3 ), 'role__not_in' => array( 'administrator' ) ) );
-
-            $topusers = $user_query->get_results();
-
-            if( $topusers ){
-                ?>
-                <tr>
-                    <th><strong>#</strong></th>
-                    <th><strong><?php esc_html_e( 'Users', 'when-last-login' ); ?></strong></th>
-                    <th><strong><?php esc_html_e( 'Login Count', 'when-last-login' ); ?></strong></th>
-                    <th><strong><?php esc_html_e( 'Last Logged In', 'when-last-login' ); ?></strong></th>
-                </tr> 
-            <?php
-                
-                $count = 1;
-                
-                foreach($topusers as $wllusers){
-                    echo '<tr><td>' . intval( $count ) . '</td>';
-                    echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
-                    echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
-                    echo '<td>' . esc_html( date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
-                    $count++;
-                }
-              
-            } else {
-
-                echo '<tr><td colspan="4">'. esc_html__( 'No data yet', 'when-last-login' ).'</td></tr>';
-    
+            echo '<a href="' . esc_url( admin_url( 'users.php?orderby=when_last_login&order=desc' ) ) . '">' . esc_html__( 'View All Users', 'when-last-login' ) . '</a>';
+            if ( true == $show_login_records ) {
+                echo ' | <a href="' . esc_url( admin_url( 'edit.php?post_type=wll_records' ) ) . '">' . esc_html__( 'View Login Records', 'when-last-login' ) . '</a>';
             }
+        }
+    }
 
-            ?></table><br/><?php
+    /**
+     * How many users the dashboard widget lists.
+     *
+     * The stored setting stays between 3 and 10. The wll_top_widget_user_count
+     * filter still receives that value and may change it.
+     *
+     * @return int
+     */
+    private static function get_widget_user_limit() {
+        $settings = get_option( 'wll_settings', array() );
+        $default  = defined( 'WLL_WIDGET_USER_COUNT' ) ? (int) WLL_WIDGET_USER_COUNT : 3;
+        $count    = ( is_array( $settings ) && isset( $settings['widget_user_count'] ) ) ? absint( $settings['widget_user_count'] ) : $default;
 
-        ?>
-
-        <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php esc_html_e( 'View All Users', 'when-last-login' ); ?></a>
-
-        <?php if( $show_login_records == true ){ ?>
-            <a style="float:right" href="<?php echo admin_url( 'edit.php?post_type=wll_records' ); ?>"><?php esc_html_e( 'View Login Records', 'when-last-login' ); } //end the if filter check here ?></a>
-        <?php    
-
+        if ( $count < 3 ) {
+            $count = 3;
         }
 
+        if ( $count > 10 ) {
+            $count = 10;
+        }
+
+        return (int) apply_filters( 'wll_top_widget_user_count', $count );
+    }
+
+    /**
+     * Last view chosen by the current user.
+     *
+     * @return string count|time
+     */
+    private static function get_widget_sort_preference() {
+        $sort = get_user_meta( get_current_user_id(), 'wll_widget_sort', true );
+
+        return ( 'time' === $sort ) ? 'time' : 'count';
+    }
+
+    /**
+     * Build the user query for one widget table.
+     *
+     * @param string $sort_order count or time.
+     * @param int    $blog_id    Multisite blog ID, or 0 for the current site.
+     * @return array
+     */
+    private static function get_widget_user_query_args( $sort_order, $blog_id = 0 ) {
+        $args = array(
+            'meta_value'   => 0,
+            'meta_compare' => '!=',
+            'order'        => 'DESC',
+            'orderby'      => 'meta_value_num',
+            'number'       => self::get_widget_user_limit(),
+            'role__not_in' => array( 'administrator' ),
+            'meta_key'     => ( 'time' === $sort_order ) ? 'when_last_login' : 'when_last_login_count',
+        );
+
+        if ( $blog_id ) {
+            $args['blog_id'] = (int) $blog_id;
+        }
+
+        return $args;
+    }
+
+    /**
+     * Format a stored UTC unix timestamp in the site timezone.
+     *
+     * @param mixed $timestamp Login time stored by time().
+     * @return string
+     */
+    private static function format_widget_login_time( $timestamp ) {
+        $timestamp = (int) $timestamp;
+
+        if ( $timestamp <= 0 ) {
+            return __( 'Never', 'when-last-login' );
+        }
+
+        if ( function_exists( 'wp_date' ) ) {
+            return wp_date( 'Y-m-d H:i:s', $timestamp );
+        }
+
+        return get_date_from_gmt( gmdate( 'Y-m-d H:i:s', $timestamp ), 'Y-m-d H:i:s' );
+    }
+
+    /**
+     * Table rows for the widget.
+     *
+     * @param array $users Users returned by WP_User_Query.
+     * @return string
+     */
+    private static function render_widget_rows( $users ) {
+        if ( empty( $users ) ) {
+            return '<tr><td colspan="4">' . esc_html__( 'No data yet', 'when-last-login' ) . '</td></tr>';
+        }
+
+        $html  = '';
+        $count = 1;
+
+        foreach ( $users as $wllusers ) {
+            $login_count = get_user_meta( $wllusers->ID, 'when_last_login_count', true );
+            $last_login  = get_user_meta( $wllusers->ID, 'when_last_login', true );
+
+            $html .= '<tr>';
+            $html .= '<td>' . esc_html( (string) $count ) . '</td>';
+            $html .= '<td>' . esc_html( $wllusers->display_name ) . '</td>';
+            $html .= '<td>' . esc_html( (string) $login_count ) . '</td>';
+            $html .= '<td>' . esc_html( self::format_widget_login_time( $last_login ) ) . '</td>';
+            $html .= '</tr>';
+            $count++;
+        }
+
+        return $html;
+    }
+
+    /**
+     * Most Frequent / Recently Logged In buttons.
+     *
+     * @param int    $blog_id      Site ID passed back by the button. 0 is the current site.
+     * @param string $current_sort count or time.
+     * @return string
+     */
+    private static function render_widget_sort_controls( $blog_id, $current_sort ) {
+        $blog_id       = (int) $blog_id;
+        $count_pressed = ( 'time' === $current_sort ) ? 'false' : 'true';
+        $time_pressed  = ( 'time' === $current_sort ) ? 'true' : 'false';
+        $count_class   = ( 'time' === $current_sort ) ? 'button button-small wll-widget-sort-btn' : 'button button-small button-primary wll-widget-sort-btn';
+        $time_class    = ( 'time' === $current_sort ) ? 'button button-small button-primary wll-widget-sort-btn' : 'button button-small wll-widget-sort-btn';
+
+        $html  = '<p class="wll-widget-sort" style="margin:0 0 8px;">';
+        $html .= '<button type="button" class="' . esc_attr( $count_class ) . '" data-sort="count" data-blog-id="' . esc_attr( (string) $blog_id ) . '" aria-pressed="' . esc_attr( $count_pressed ) . '">' . esc_html__( 'Most Frequent', 'when-last-login' ) . '</button> ';
+        $html .= '<button type="button" class="' . esc_attr( $time_class ) . '" data-sort="time" data-blog-id="' . esc_attr( (string) $blog_id ) . '" aria-pressed="' . esc_attr( $time_pressed ) . '">' . esc_html__( 'Recently Logged In', 'when-last-login' ) . '</button> ';
+        $html .= '<span class="spinner" style="float:none;margin:0 0 0 4px;"></span>';
+        $html .= '</p>';
+
+        return $html;
+    }
+
+    /**
+     * One widget table. The body id is what the sort buttons replace.
+     *
+     * @param string $sort    count or time.
+     * @param int    $blog_id Multisite blog ID, or 0.
+     * @return string
+     */
+    private static function render_widget_table( $sort, $blog_id ) {
+        $blog_id    = (int) $blog_id;
+        $rows_id    = $blog_id ? 'wll-widget-rows-' . $blog_id : 'wll-widget-rows';
+        $user_query = new WP_User_Query( self::get_widget_user_query_args( $sort, $blog_id ) );
+
+        $html  = '<table class="wp-list-table striped widefat">';
+        $html .= '<thead><tr>';
+        $html .= '<th><strong>#</strong></th>';
+        $html .= '<th><strong>' . esc_html__( 'Users', 'when-last-login' ) . '</strong></th>';
+        $html .= '<th><strong>' . esc_html__( 'Login Count', 'when-last-login' ) . '</strong></th>';
+        $html .= '<th><strong>' . esc_html__( 'Last Logged In', 'when-last-login' ) . '</strong></th>';
+        $html .= '</tr></thead>';
+        $html .= '<tbody id="' . esc_attr( $rows_id ) . '">';
+        $html .= self::render_widget_rows( $user_query->get_results() );
+        $html .= '</tbody></table><br/>';
+
+        return $html;
+    }
+
+    /**
+     * Script for the dashboard widget buttons.
+     *
+     * @param string $hook Current admin page hook.
+     */
+    public function enqueue_dashboard_widget_scripts( $hook ) {
+        if ( 'index.php' !== $hook ) {
+            return;
+        }
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
+        if ( ! apply_filters( 'when_last_login_show_admin_widget', true ) ) {
+            return;
+        }
+
+        wp_enqueue_script(
+            'wll-dashboard-widget',
+            plugins_url( 'js/wll-dashboard-widget.js', __FILE__ ),
+            array( 'jquery' ),
+            WLL_VER,
+            true
+        );
+
+        wp_localize_script(
+            'wll-dashboard-widget',
+            'wllWidget',
+            array(
+                'ajaxUrl'      => admin_url( 'admin-ajax.php' ),
+                'nonce'        => wp_create_nonce( 'wll_widget_nonce' ),
+                'errorMessage' => __( 'The login list could not be loaded. Please refresh the Dashboard and try again.', 'when-last-login' ),
+            )
+        );
+    }
+
+    /**
+     * Replace the widget rows when a view button is clicked.
+     */
+    public function wll_fetch_widget_data_ajax() {
+        if ( ! check_ajax_referer( 'wll_widget_nonce', 'nonce', false ) ) {
+            wp_send_json_error(
+                array(
+                    'message' => __( 'The request could not be verified. Please refresh the Dashboard and try again.', 'when-last-login' ),
+                ),
+                403
+            );
+        }
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error(
+                array(
+                    'message' => __( 'You do not have permission to view this widget.', 'when-last-login' ),
+                ),
+                403
+            );
+        }
+
+        $sort = isset( $_POST['sort_order'] ) ? sanitize_key( wp_unslash( $_POST['sort_order'] ) ) : 'count';
+        if ( 'time' !== $sort ) {
+            $sort = 'count';
+        }
+
+        $blog_id = isset( $_POST['blog_id'] ) ? absint( wp_unslash( $_POST['blog_id'] ) ) : 0;
+
+        if ( $blog_id && (int) get_current_blog_id() !== $blog_id ) {
+            $site = function_exists( 'get_site' ) ? get_site( $blog_id ) : get_blog_details( $blog_id );
+            if ( ! is_multisite() || ! current_user_can( 'manage_network' ) || ! $site ) {
+                wp_send_json_error(
+                    array(
+                        'message' => __( 'You do not have permission to view this site.', 'when-last-login' ),
+                    ),
+                    403
+                );
+            }
+        }
+
+        update_user_meta( get_current_user_id(), 'wll_widget_sort', $sort );
+
+        $user_query = new WP_User_Query( self::get_widget_user_query_args( $sort, $blog_id ) );
+
+        wp_send_json_success(
+            array(
+                'html' => self::render_widget_rows( $user_query->get_results() ),
+            )
+        );
     }
 
      /**
@@ -571,6 +757,18 @@ class When_Last_Login {
           $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( wp_unslash( $_POST['wll_login_record_user_access'] ) ) : '';
           $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( wp_unslash( $_POST['wll_record_user_ip_address'] ) ) == '1' ? 1 : 0;
           $wll_settings['show_all_login_records'] = isset( $_POST['wll_all_login_records'] ) && sanitize_text_field( wp_unslash( $_POST['wll_all_login_records'] ) ) == '1' ? 1 : 0;
+
+          if ( isset( $_POST['wll_widget_user_count'] ) ) {
+            $widget_user_count = absint( wp_unslash( $_POST['wll_widget_user_count'] ) );
+            if ( $widget_user_count < 3 ) {
+              $widget_user_count = 3;
+            }
+            if ( $widget_user_count > 10 ) {
+              $widget_user_count = 10;
+            }
+            $wll_settings['widget_user_count'] = $widget_user_count;
+          }
+
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 
