@@ -17,7 +17,7 @@ A lightweight plugin that allows you to see active users according to their last
 = Features =
 * Show when last a user has logged into your site.
 * Sorts users according to last login time stamp (Ascending/Descending) in the WordPress user list.
-* Administrator widget for top 3 users according to login count.
+* Administrator widget that can show the most frequent logins or the most recent logins.
 * Integrates with Paid Memberships Pro  1.8+ - Add's a 'Last Logged In' column to the 'Members List'.
 * Generates a login history table under 'When Last Login' > 'All Login Records'. 
 * Hooks and filters for developers.
@@ -94,6 +94,10 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 2. When Last Login - Show top 3 user login (includes 'administrators' in free version)
 
 == Changelog ==
+= 1.3.0 =
+* ENHANCEMENT: Added Most Frequent and Recently Logged In buttons to the dashboard widget.
+* ENHANCEMENT: Added a setting for how many users the dashboard widget shows, from 3 to 10.
+
 = 1.2.3 - 2025-07-21 =
 * ENHANCEMENT: Added support for 2FA plugin.
 
