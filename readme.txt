@@ -5,7 +5,7 @@ Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_i
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.4
+Stable tag: 1.2.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,7 +17,7 @@ A lightweight plugin that allows you to see active users according to their last
 = Features =
 * Show when last a user has logged into your site.
 * Sorts users according to last login time stamp (Ascending/Descending) in the WordPress user list.
-* Administrator widget for top 3 users according to login count.
+* Administrator widget that can show the most frequent logins or the most recent logins.
 * Integrates with Paid Memberships Pro  1.8+ - Add's a 'Last Logged In' column to the 'Members List'.
 * Generates a login history table under 'When Last Login' > 'All Login Records'. 
 * Hooks and filters for developers.
@@ -94,6 +94,11 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 2. When Last Login - Show top 3 user login (includes 'administrators' in free version)
 
 == Changelog ==
+= 1.2.5 - 2026-11-02 =
+* ENHANCEMENT: Added Most Frequent and Recently Logged In buttons to the dashboard widget.
+* ENHANCEMENT: Added a setting for how many users the dashboard widget shows, from 3 to 10.
+* BUG FIX: Dashboard widget times now follow the site timezone.
+
 = 1.2.4 - 2026-09-29 =
 * SECURITY: Enable SSL verification for the add-ons request and sanitize the remote response before output.
 * SECURITY: Use HTTPS for IP lookup links and validate captured IP addresses.
@@ -170,6 +175,9 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 * First Release
 
 == Upgrade Notice ==
+= 1.2.5 =
+* Adds the dashboard widget view buttons and a setting for how many users it shows.
+
 = 1.2.4 =
 * Security update. Please update immediately.
 
