@@ -94,10 +94,13 @@ Add the following snippet of code to your theme's functions.php or custom plugin
 2. When Last Login - Show top 3 user login (includes 'administrators' in free version)
 
 == Changelog ==
-= 1.2.5 - 2026-11-02 =
+= 1.2.5 - 2026-11-13 =
 * ENHANCEMENT: Added Most Frequent and Recently Logged In buttons to the dashboard widget.
 * ENHANCEMENT: Added a setting for how many users the dashboard widget shows, from 3 to 10.
 * BUG FIX: Dashboard widget times now follow the site timezone.
+* BUG FIX: Sorting or searching Users by Last Login no longer hides accounts that have never logged in.
+* BUG FIX: Logins that set an auth cookie without wp_login are recorded once, and a Two Factor password step is not counted.
+* BUG FIX: Privacy erasure no longer reports a failure when When Last Login data is already gone.
 
 = 1.2.4 - 2026-09-29 =
 * SECURITY: Enable SSL verification for the add-ons request and sanitize the remote response before output.

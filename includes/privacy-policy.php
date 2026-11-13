@@ -144,29 +144,25 @@ function plugin_user_data_eraser( $email_address, $page = 1 ) {
 	$items_removed  = false;
 	$items_retained = false;
 	if ( $user && $user->ID ) {
+		// delete_user_meta() is false when the key is already absent. That is
+		// erased, not a failure. A stored 0 ("Never") is real meta and is deleted.
+		$meta_keys = array(
+			'when_last_login'       => __( 'Your last login timestamp was unable to be removed at this time.', 'when-last-login' ),
+			'when_last_login_count' => esc_html__( 'Your login count was unable to be removed at this time.', 'when-last-login' ),
+			'wll_user_ip_address'   => esc_html__( 'Your IP address was unable to be removed at this time.', 'when-last-login' ),
+		);
 
-		$deleted_when_last_login = delete_user_meta( $user->ID, 'when_last_login' );
-		if ( $deleted_when_last_login ) {
-			$items_removed = true;
-		} else {
-			$messages[] = __( 'Your last login timestamp was unable to be removed at this time.', 'when-last-login' );
-			$items_retained = true;
-		}
-		
-		$deleted_when_last_login_count = delete_user_meta( $user->ID, 'when_last_login_count' );
-		if ( $deleted_when_last_login_count ) {
-			$items_removed = true;
-		} else {
-			$messages[] = esc_html__( 'Your login count was unable to be removed at this time.', 'when-last-login' );
-			$items_retained = true;
-		}
+		foreach ( $meta_keys as $meta_key => $failure_message ) {
+			if ( ! metadata_exists( 'user', $user->ID, $meta_key ) ) {
+				continue;
+			}
 
-		$deleted_ip_address = delete_user_meta( $user->ID, 'wll_user_ip_address' );
-		if ( $deleted_ip_address ) {
-			$items_removed = true;
-		} else {
-			$messages[] = esc_html__( 'Your IP address was unable to be removed at this time.', 'when-last-login' );
-			$items_retained = true;
+			if ( delete_user_meta( $user->ID, $meta_key ) ) {
+				$items_removed = true;
+			} else {
+				$messages[]     = $failure_message;
+				$items_retained = true;
+			}
 		}
 	}
 	// Returns an array of exported items for this pass, but also a boolean whether this exporter is finished.
