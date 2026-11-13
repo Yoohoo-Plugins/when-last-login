@@ -824,12 +824,18 @@ class When_Last_Login {
     }
 
     /**
-     * LEFT JOIN so users with no when_last_login row still sort. Missing meta sorts as 0.
+     * Sort by last login without dropping users who have no meta.
+     *
+     * A direct LEFT JOIN plus DISTINCT cannot ORDER BY the meta value on
+     * MySQL 8 (ONLY_FULL_GROUP_BY). One grouped row per user avoids that,
+     * and missing meta sorts as 0.
      *
      * @param WP_User_Query $query User query.
      */
     public static function include_users_without_login_meta( $query ) {
       global $wpdb;
+
+      remove_action( 'pre_user_query', array( __CLASS__, 'include_users_without_login_meta' ) );
 
       if ( ! $query instanceof WP_User_Query ) {
         return;
@@ -849,15 +855,16 @@ class When_Last_Login {
       }
 
       $query->query_from .= $wpdb->prepare(
-        " LEFT JOIN {$wpdb->usermeta} AS wll_last_login ON ( {$wpdb->users}.ID = wll_last_login.user_id AND wll_last_login.meta_key = %s )",
+        " LEFT JOIN (
+          SELECT user_id, MAX(CAST(meta_value AS UNSIGNED)) AS login_ts
+          FROM {$wpdb->usermeta}
+          WHERE meta_key = %s
+          GROUP BY user_id
+        ) AS wll_last_login ON ( {$wpdb->users}.ID = wll_last_login.user_id )",
         'when_last_login'
       );
 
-      if ( ! preg_match( '/\bDISTINCT\b/', $query->query_fields ) ) {
-        $query->query_fields = preg_replace( '/^(SQL_CALC_FOUND_ROWS\s+)?/', '$1DISTINCT ', $query->query_fields, 1 );
-      }
-
-      $query->query_orderby = "ORDER BY CAST(COALESCE(wll_last_login.meta_value, '0') AS UNSIGNED) {$order}, {$wpdb->users}.ID {$order}";
+      $query->query_orderby = "ORDER BY COALESCE(wll_last_login.login_ts, 0) {$order}, {$wpdb->users}.ID {$order}";
     }
 
      /*
